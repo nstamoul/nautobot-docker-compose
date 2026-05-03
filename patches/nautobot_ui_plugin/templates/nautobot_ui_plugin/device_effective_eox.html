@@ -14,7 +14,13 @@
       </div>
 
       {% if section.record_label %}
-        <div class="text-muted small mb-2">{{ section.record_label }}</div>
+        <div class="text-muted small mb-2">
+          {% if section.record_url %}
+            <a href="{{ section.record_url }}">{{ section.record_label }}</a>
+          {% else %}
+            {{ section.record_label }}
+          {% endif %}
+        </div>
       {% endif %}
 
       {% if not section.record %}

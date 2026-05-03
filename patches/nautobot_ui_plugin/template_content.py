@@ -39,6 +39,16 @@ def _field(label, value, url=None):
     }
 
 
+def _record_url(record):
+    """Return an object detail URL for a lifecycle record when available."""
+    if record is None or not hasattr(record, "get_absolute_url"):
+        return None
+    try:
+        return _value_to_text(record.get_absolute_url())
+    except Exception:
+        return None
+
+
 def _custom_field_value(obj, key):
     """Retrieve a custom field value from a Nautobot object."""
     if obj is None:
@@ -102,6 +112,7 @@ class DeviceEffectiveEOXContent(TemplateExtension):
             "title": "Hardware lifecycle",
             "source": _value_to_text(getattr(device, "device_type", None)),
             "record_label": _value_to_text(record) if record else None,
+            "record_url": _record_url(record),
             "status_class": status_class,
             "status_label": status_label,
             "record": record,
@@ -153,6 +164,7 @@ class DeviceEffectiveEOXContent(TemplateExtension):
             "title": "Software lifecycle",
             "source": source_label,
             "record_label": _value_to_text(record) if record else None,
+            "record_url": _record_url(record),
             "status_class": status_class,
             "status_label": status_label,
             "record": record,
