@@ -1,0 +1,54 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://git.space.gr/nstam/nautobot_cisco_order_tracking/raw/main/nbcot/app-config-schema.json",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "environment": {
+            "type": "string",
+            "enum": ["uat", "poe", "prod"],
+            "default": "prod"
+        },
+        "token_url": {
+            "type": "string",
+            "default": "https://id.cisco.com/oauth2/default/v1/token"
+        },
+        "graphql_endpoint": {
+            "type": "string",
+            "default": "https://capi.cisco.com/commerce/apis"
+        },
+        "client_id": {
+            "type": "string",
+            "default": ""
+        },
+        "client_secret": {
+            "type": "string",
+            "default": ""
+        },
+        "tracked_order_refresh_interval_minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 60
+        },
+        "enable_event_consumer": {
+            "type": "boolean",
+            "default": false
+        },
+        "search_query_document": {
+            "type": "string",
+            "default": ""
+        },
+        "order_details_query_document": {
+            "type": "string",
+            "default": ""
+        },
+        "subscription_search_query_document": {
+            "type": "string",
+            "default": ""
+        },
+        "subscription_details_query_document": {
+            "type": "string",
+            "default": ""
+        }
+    }
+}

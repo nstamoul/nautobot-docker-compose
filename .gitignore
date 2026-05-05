@@ -110,6 +110,8 @@ celerybeat.pid
 # Environments
 local.env
 .env
+plugins/**/development/creds.env
+plugins/**/development/*.sqlite3
 .venv
 env/
 venv/

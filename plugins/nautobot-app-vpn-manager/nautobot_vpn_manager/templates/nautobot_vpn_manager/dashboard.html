@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+
+{% block title %}VPN Manager{% endblock %}
+
+{% block content %}
+<style>
+  .vpn-layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  .vpn-panel {
+    border: 1px solid #d7e0ea;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 14px 32px rgba(22, 61, 97, 0.08);
+    overflow: hidden;
+  }
+  .vpn-panel__header {
+    padding: 18px 22px;
+    border-bottom: 1px solid #e6eef8;
+    background: linear-gradient(135deg, #eef5ff 0%, #f8fbff 100%);
+  }
+  .vpn-panel__header h3,
+  .vpn-panel__header h4 {
+    margin: 0;
+    font-weight: 700;
+  }
+  .vpn-panel__body {
+    padding: 20px 22px 22px;
+  }
+  .vpn-panel__subtle {
+    color: #60748a;
+    margin-top: 8px;
+    line-height: 1.45;
+  }
+  .vpn-badge-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .vpn-badge {
+    border-radius: 14px;
+    background: #f3f7fc;
+    padding: 14px;
+  }
+  .vpn-badge__label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6c8098;
+    margin-bottom: 6px;
+  }
+  .vpn-badge__value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #18324a;
+  }
+  .vpn-helper {
+    color: #6c8098;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .vpn-form-section {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #e6eef8;
+  }
+  .vpn-form-section h5 {
+    margin: 0 0 12px;
+    font-weight: 700;
+    color: #18324a;
+  }
+  .vpn-card-list {
+    display: grid;
+    gap: 16px;
+  }
+  .vpn-card {
+    border: 1px solid #dfe8f3;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 10px 26px rgba(21, 53, 83, 0.06);
+    overflow: hidden;
+  }
+  .vpn-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 22px;
+    background: #fbfdff;
+    border-bottom: 1px solid #edf3fa;
+  }
+  .vpn-card__title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .vpn-card__title h4 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: #172f45;
+  }
+  .vpn-card__meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .vpn-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #edf4fb;
+    color: #33526e;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .vpn-led {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 0 6px rgba(0, 0, 0, 0.03);
+  }
+  .vpn-led--up { background: #2faa58; }
+  .vpn-led--starting { background: #f0a428; }
+  .vpn-led--failed { background: #d64545; }
+  .vpn-led--down { background: #c8d4df; }
+  .vpn-card__body {
+    padding: 20px 22px 22px;
+  }
+  .vpn-card__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .vpn-card__grid dt {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #70849a;
+    margin-bottom: 5px;
+  }
+  .vpn-card__grid dd {
+    margin: 0;
+    color: #17314a;
+    font-weight: 600;
+    word-break: break-word;
+  }
+  .vpn-workers {
+    border-top: 1px solid #edf3fa;
+    border-bottom: 1px solid #edf3fa;
+    padding: 14px 0;
+    margin: 16px 0;
+  }
+  .vpn-workers ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+  .vpn-workers li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #f7fafc;
+  }
+  .vpn-actions {
+    display: grid;
+    grid-template-columns: 180px repeat(3, minmax(0, auto));
+    gap: 10px;
+    align-items: end;
+  }
+  .vpn-actions form {
+    margin: 0;
+  }
+  .vpn-actions .btn {
+    width: 100%;
+  }
+  .vpn-note {
+    margin-top: 12px;
+    color: #6b7f95;
+    font-size: 13px;
+  }
+  .vpn-stack {
+    display: grid;
+    gap: 24px;
+  }
+  .vpn-remote-meta {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .vpn-remote-meta dt {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #70849a;
+    margin-bottom: 5px;
+  }
+  .vpn-remote-meta dd {
+    margin: 0;
+    color: #17314a;
+    font-weight: 600;
+    word-break: break-word;
+  }
+  .vpn-queue-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+  }
+  .vpn-queue-list code {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #edf4fb;
+    color: #33526e;
+  }
+  .vpn-remote-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+    margin-top: 16px;
+  }
+  @media (max-width: 1200px) {
+    .vpn-layout,
+    .vpn-card__grid,
+    .vpn-actions,
+    .vpn-badge-grid,
+    .vpn-remote-meta,
+    .vpn-remote-actions {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="vpn-stack">
+  <div class="vpn-layout">
+    <section class="vpn-panel">
+    <div class="vpn-panel__header">
+      <h3>Add / Reuse Tenant VPN</h3>
+      <div class="vpn-panel__subtle">
+        Vault is the primary source of truth for tenant VPN profiles. The fields below are runtime overrides only.
+      </div>
+    </div>
+    <div class="vpn-panel__body">
+      <div class="vpn-badge-grid">
+        <div class="vpn-badge">
+          <span class="vpn-badge__label">Any VPN Up</span>
+          <span class="vpn-badge__value">{% if status and status.vpn_running %}Yes{% else %}No{% endif %}</span>
+        </div>
+        <div class="vpn-badge">
+          <span class="vpn-badge__label">Any Worker Up</span>
+          <span class="vpn-badge__value">{% if status and status.worker_running %}Yes{% else %}No{% endif %}</span>
+        </div>
+        <div class="vpn-badge">
+          <span class="vpn-badge__label">Active Slots</span>
+          <span class="vpn-badge__value">{{ slots|length }}</span>
+        </div>
+      </div>
+
+      {% if error_message %}
+        <div class="alert alert-danger">{{ error_message }}</div>
+      {% endif %}
+
+      <form method="post" action="{% url 'plugins:nautobot_vpn_manager:action' %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="start">
+
+        <div class="form-group">
+          {{ form.tenant.label_tag }}
+          {{ form.tenant }}
+          <p class="help-block">{{ form.tenant.help_text }}</p>
+        </div>
+        <div class="form-group">
+          {{ form.customer.label_tag }}
+          {{ form.customer }}
+          <p class="help-block">{{ form.customer.help_text }}</p>
+        </div>
+        <div class="form-group">
+          {{ form.worker_count.label_tag }}
+          {{ form.worker_count }}
+          <p class="help-block">{{ form.worker_count.help_text }}</p>
+        </div>
+
+        <div class="vpn-form-section">
+          <h5>Optional Runtime Overrides</h5>
+          <div class="vpn-helper">
+            Use these only when you need to override the Vault-backed tenant profile during this run.
+          </div>
+          <div class="form-group" style="margin-top: 14px;">
+            {{ form.otp.label_tag }}
+            {{ form.otp }}
+            <p class="help-block">Optional OTP / MFA code override.</p>
+          </div>
+          <div class="form-group">
+            {{ form.authgroup.label_tag }}
+            {{ form.authgroup }}
+            <p class="help-block">Optional authentication realm override.</p>
+          </div>
+          <div class="form-group">
+            {{ form.banner_response.label_tag }}
+            {{ form.banner_response }}
+            <p class="help-block">Optional banner prompt response override.</p>
+          </div>
+          <div class="form-group">
+            {{ form.extra_args.label_tag }}
+            {{ form.extra_args }}
+            <p class="help-block">Optional extra CLI flags passed to the VPN helper.</p>
+          </div>
+          <div class="form-group">
+            {{ form.passthrough.label_tag }}
+            {{ form.passthrough }}
+            <p class="help-block">Optional passthrough domains override for this slot.</p>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg">Start / Reuse VPN</button>
+      </form>
+    </div>
+    </section>
+
+    <section class="vpn-panel">
+    <div class="vpn-panel__header">
+      <h3>Tenant VPN Inventory</h3>
+      <div class="vpn-panel__subtle">
+        Active and in-flight tenant VPN slots are managed here. Start new slots from the Add / Reuse pane.
+      </div>
+    </div>
+    <div class="vpn-panel__body">
+      {% if inventory %}
+        <div class="vpn-card-list">
+          {% for slot in inventory %}
+            <article class="vpn-card">
+              <div class="vpn-card__header">
+                <div>
+                  <div class="vpn-card__title">
+                    <span class="vpn-led vpn-led--{{ slot.status|default:'down' }}"></span>
+                    <div>
+                      <h4>{{ slot.tenant_name|default:slot.customer }}</h4>
+                      <div class="vpn-card__meta">
+                        <span class="vpn-chip">{{ slot.status|default:"down"|upper }}</span>
+                        <span class="vpn-chip">Vault-backed profile</span>
+                        {% if not slot.is_tenant_backed %}
+                          <span class="vpn-chip">Customer override</span>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="vpn-helper text-right">
+                  Slot <code>{{ slot.slot }}</code><br>
+                  Queue <code>{{ slot.queue_name }}</code>
+                </div>
+              </div>
+
+              <div class="vpn-card__body">
+                <dl class="vpn-card__grid">
+                  <div>
+                    <dt>Project</dt>
+                    <dd><code>{{ slot.project_name }}</code></dd>
+                  </div>
+                  <div>
+                    <dt>Tunnel</dt>
+                    <dd>{{ slot.tunnel_interface|default:"-" }}</dd>
+                  </div>
+                  <div>
+                    <dt>Workers</dt>
+                    <dd>{{ slot.running_workers|default:0 }} / {{ slot.desired_workers|default:0 }}</dd>
+                  </div>
+                  <div>
+                    <dt>Source</dt>
+                    <dd>{{ slot.source_of_truth|default:"vault"|capfirst }}</dd>
+                  </div>
+                </dl>
+
+                <div class="vpn-workers">
+                  <div class="vpn-helper" style="margin-bottom: 10px;">
+                    Worker inventory. Display names use the required <code>-01</code>, <code>-02</code> suffix convention.
+                  </div>
+                  {% if slot.workers %}
+                    <ul>
+                      {% for worker in slot.workers %}
+                        <li>
+                          <span>
+                            <span class="vpn-led vpn-led--{% if worker.running %}up{% else %}failed{% endif %}" style="width: 10px; height: 10px; box-shadow: none; margin-right: 8px;"></span>
+                            <strong>{{ worker.name }}</strong>
+                          </span>
+                          <span class="vpn-helper">{{ worker.container_name }}</span>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <div class="vpn-helper">No worker containers currently exist for this slot.</div>
+                  {% endif %}
+                </div>
+
+                <div class="vpn-actions">
+                  <form method="post" action="{% url 'plugins:nautobot_vpn_manager:action' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="scale">
+                    <input type="hidden" name="customer" value="{{ slot.customer }}">
+                    <label for="worker_count_{{ slot.slot }}">Workers</label>
+                    <input id="worker_count_{{ slot.slot }}" class="form-control" type="number" name="worker_count" min="1" max="32" value="{% if slot.desired_workers %}{{ slot.desired_workers }}{% else %}1{% endif %}">
+                    <button type="submit" class="btn btn-default" style="margin-top: 10px;">Update</button>
+                  </form>
+
+                  <form method="post" action="{% url 'plugins:nautobot_vpn_manager:action' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="restart">
+                    <input type="hidden" name="customer" value="{{ slot.customer }}">
+                    <input type="hidden" name="worker_count" value="{{ slot.desired_workers|default:1 }}">
+                    <button type="submit" class="btn btn-warning">Restart</button>
+                  </form>
+
+                  <form method="post" action="{% url 'plugins:nautobot_vpn_manager:action' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="stop">
+                    <input type="hidden" name="customer" value="{{ slot.customer }}">
+                    <button type="submit" class="btn btn-danger">Stop</button>
+                  </form>
+                </div>
+
+                <div class="vpn-note">
+                  Overrides are intentionally not stored here. This view treats Vault as the source of truth and only accepts per-run runtime overrides from the left-hand form.
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-muted">No tenant inventory is available yet.</div>
+      {% endif %}
+    </div>
+    </section>
+  </div>
+
+  <section class="vpn-panel">
+    <div class="vpn-panel__header">
+      <h3>Remote Worker Registry</h3>
+      <div class="vpn-panel__subtle">
+        Remote workers keep their own machine identity and receive queue assignments from SHMS. Desired queues below should match the worker runtime after its next heartbeat-driven restart.
+      </div>
+    </div>
+    <div class="vpn-panel__body">
+      {% if remote_worker_error %}
+        <div class="alert alert-danger">{{ remote_worker_error }}</div>
+      {% endif %}
+
+      {% if remote_workers %}
+        <div class="vpn-card-list">
+          {% for worker in remote_workers %}
+            <article class="vpn-card">
+              <div class="vpn-card__header">
+                <div>
+                  <div class="vpn-card__title">
+                    <span class="vpn-led vpn-led--{% if worker.stale %}failed{% elif worker.assignment_status == 'assigned' %}up{% else %}starting{% endif %}"></span>
+                    <div>
+                      <h4>{{ worker.worker_id }}</h4>
+                      <div class="vpn-card__meta">
+                        <span class="vpn-chip">{{ worker.assignment_status|upper }}</span>
+                        <span class="vpn-chip">{{ worker.hostname }}</span>
+                        {% if worker.platform %}
+                          <span class="vpn-chip">{{ worker.platform }}</span>
+                        {% endif %}
+                        {% if worker.software_version %}
+                          <span class="vpn-chip">Version {{ worker.software_version }}</span>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="vpn-helper text-right">
+                  Last heartbeat<br>
+                  <code>{{ worker.last_heartbeat|default:"never" }}</code>
+                </div>
+              </div>
+
+              <div class="vpn-card__body">
+                <dl class="vpn-remote-meta">
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{{ worker.status|default:"unknown"|capfirst }}</dd>
+                  </div>
+                  <div>
+                    <dt>Heartbeat age</dt>
+                    <dd>{% if worker.heartbeat_age_seconds is not None %}{{ worker.heartbeat_age_seconds }}s{% else %}-{% endif %}</dd>
+                  </div>
+                  <div>
+                    <dt>Needs restart</dt>
+                    <dd>{% if worker.needs_restart %}Yes{% else %}No{% endif %}</dd>
+                  </div>
+                  <div>
+                    <dt>Registered</dt>
+                    <dd><code>{{ worker.registered_at|default:"-" }}</code></dd>
+                  </div>
+                  <div>
+                    <dt>Last assignment</dt>
+                    <dd><code>{{ worker.last_assignment|default:"-" }}</code></dd>
+                  </div>
+                </dl>
+
+                <div class="vpn-workers">
+                  <div class="vpn-helper" style="margin-bottom: 10px;">Advertised queues</div>
+                  {% if worker.advertised_queues %}
+                    <div class="vpn-queue-list">
+                      {% for queue_name in worker.advertised_queues %}
+                        <code>{{ queue_name }}</code>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="vpn-helper">Worker did not advertise queue restrictions.</div>
+                  {% endif %}
+                </div>
+
+                <div class="vpn-workers">
+                  <div class="vpn-helper" style="margin-bottom: 10px;">Desired queues</div>
+                  {% if worker.desired_queues %}
+                    <div class="vpn-queue-list">
+                      {% for queue_name in worker.desired_queues %}
+                        <code>{{ queue_name }}</code>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="vpn-helper">No assignment. The worker should remain idle until queued work is assigned.</div>
+                  {% endif %}
+                </div>
+
+                <div class="vpn-workers">
+                  <div class="vpn-helper" style="margin-bottom: 10px;">Current queues</div>
+                  {% if worker.current_queues %}
+                    <div class="vpn-queue-list">
+                      {% for queue_name in worker.current_queues %}
+                        <code>{{ queue_name }}</code>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="vpn-helper">Worker is not consuming any queues right now.</div>
+                  {% endif %}
+                </div>
+
+                <form method="post" action="{% url 'plugins:nautobot_vpn_manager:action' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="assign_remote_worker">
+                  <input type="hidden" name="worker_id" value="{{ worker.worker_id }}">
+                  <div class="vpn-remote-actions">
+                    <div>
+                      <label for="desired_queues_{{ worker.worker_id }}">Desired queues</label>
+                      <input id="desired_queues_{{ worker.worker_id }}" class="form-control" type="text" name="desired_queues" value="{{ worker.desired_queues|join:', ' }}" placeholder="vpn-acme, vpn-generic">
+                      <div class="vpn-note">Clear the field to drain the worker. Queue names remain tenant-derived.</div>
+                    </div>
+                    <button type="submit" class="btn btn-default">Update</button>
+                  </div>
+                </form>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-muted">No remote workers have registered yet.</div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
