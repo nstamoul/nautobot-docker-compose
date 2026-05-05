@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+
+{% block title %}Remote Worker Steering{% endblock %}
+
+{% block content %}
+<style>
+  .vpn-worker-page {
+    display: grid;
+    gap: 18px;
+  }
+  .vpn-panel {
+    border: 1px solid #d7e0ea;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .vpn-panel--filters {
+    overflow: visible;
+    position: relative;
+    z-index: 5;
+  }
+  .vpn-panel__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 18px;
+    border-bottom: 1px solid #e6eef8;
+    background: #f7f9fc;
+  }
+  .vpn-panel__header h3 {
+    margin: 0;
+    font-weight: 700;
+  }
+  .vpn-panel__subtle {
+    color: #60748a;
+    margin-top: 6px;
+    line-height: 1.45;
+  }
+  .vpn-panel__body {
+    padding: 18px;
+  }
+  .vpn-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .vpn-summary {
+    border: 1px solid #e2eaf3;
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: 12px;
+  }
+  .vpn-summary__label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6c8098;
+    margin-bottom: 6px;
+  }
+  .vpn-summary__value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #18324a;
+  }
+  .vpn-filter-grid {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.4fr) minmax(190px, 1fr) minmax(150px, 0.8fr) repeat(4, minmax(145px, 0.9fr)) auto;
+    gap: 12px;
+    align-items: end;
+  }
+  .vpn-filter-grid label {
+    display: block;
+    color: #41566d;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .vpn-table-wrap {
+    overflow-x: auto;
+  }
+  .vpn-worker-table {
+    width: 100%;
+    min-width: 1120px;
+    border-collapse: collapse;
+  }
+  .vpn-worker-table th,
+  .vpn-worker-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #e6edf5;
+    vertical-align: top;
+  }
+  .vpn-worker-table th {
+    background: #f8fafc;
+    color: #61758d;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .vpn-sort-button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+  }
+  .vpn-sort-button:focus {
+    outline: 2px solid #7aa7d9;
+    outline-offset: 2px;
+  }
+  .vpn-sort-indicator {
+    color: #8ba0b6;
+    font-size: 11px;
+    min-width: 10px;
+    text-align: center;
+  }
+  .vpn-worker-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 170px;
+  }
+  .vpn-led {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    background: #9aa9b8;
+  }
+  .vpn-led--up { background: #2faa58; }
+  .vpn-led--stale { background: #d99a2b; }
+  .vpn-led--down { background: #c84d4d; }
+  .vpn-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+  }
+  .vpn-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #edf4fb;
+    color: #33526e;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .vpn-chip--muted {
+    background: #f1f3f5;
+    color: #5f6f7f;
+  }
+  .vpn-note {
+    color: #6b7f95;
+    font-size: 13px;
+  }
+  .vpn-filter-menu {
+    position: relative;
+  }
+  .vpn-filter-menu summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 34px;
+    padding: 6px 12px;
+    border: 1px solid #cfd8e3;
+    border-radius: 4px;
+    background: #fff;
+    color: #25384d;
+    cursor: pointer;
+    list-style: none;
+  }
+  .vpn-filter-menu summary::-webkit-details-marker {
+    display: none;
+  }
+  .vpn-filter-menu summary::after {
+    content: "v";
+    color: #60748a;
+    font-size: 12px;
+  }
+  .vpn-filter-menu[open] summary {
+    border-color: #7db3f4;
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
+  }
+  .vpn-filter-menu__options {
+    position: absolute;
+    z-index: 20;
+    inset: calc(100% + 4px) 0 auto 0;
+    max-height: 260px;
+    overflow: auto;
+    border: 1px solid #cfd8e3;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(24, 50, 74, 0.16);
+    padding: 6px;
+  }
+  .vpn-filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 7px;
+    margin: 0;
+    border-radius: 4px;
+    color: #25384d;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    cursor: pointer;
+  }
+  .vpn-filter-option:hover {
+    background: #eef5fc;
+  }
+  .vpn-filter-option input {
+    margin: 0;
+  }
+  .vpn-filter-grid input[type="date"] {
+    min-width: 0;
+  }
+  @media (max-width: 1200px) {
+    .vpn-panel__header,
+    .vpn-summary-grid,
+    .vpn-filter-grid {
+      grid-template-columns: 1fr;
+      display: grid;
+    }
+  }
+</style>
+
+<div class="vpn-worker-page">
+  <section class="vpn-panel">
+    <div class="vpn-panel__header">
+      <div>
+        <h3>Remote Worker Steering</h3>
+        <div class="vpn-panel__subtle">
+          All registered remote workers from piconfig. Open a worker to edit persisted queue assignment and apply live Celery steering.
+          Rendered {% now "Y-m-d H:i:s T" %}.
+        </div>
+      </div>
+      <a class="btn btn-default" href="{% url 'plugins:nautobot_vpn_manager:dashboard' %}">Dashboard</a>
+    </div>
+    <div class="vpn-panel__body">
+      {% if remote_worker_error %}
+        <div class="alert alert-danger">{{ remote_worker_error }}</div>
+      {% endif %}
+      {% if live_queue_error %}
+        <div class="alert alert-warning">Live Celery queue inspection unavailable; current queues fall back to piconfig assignment state. {{ live_queue_error }}</div>
+      {% endif %}
+      <div class="vpn-summary-grid">
+        <div class="vpn-summary">
+          <span class="vpn-summary__label">Visible workers</span>
+          <span class="vpn-summary__value">{{ visible_remote_worker_count }}</span>
+        </div>
+        <div class="vpn-summary">
+          <span class="vpn-summary__label">Registered workers</span>
+          <span class="vpn-summary__value">{{ all_remote_worker_count }}</span>
+        </div>
+        <div class="vpn-summary">
+          <span class="vpn-summary__label">Active workers</span>
+          <span class="vpn-summary__value">{{ active_remote_worker_count }}</span>
+        </div>
+        <div class="vpn-summary">
+          <span class="vpn-summary__label">Assignable queues</span>
+          <span class="vpn-summary__value">{{ tenant_queue_choices|length }}</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="vpn-panel vpn-panel--filters">
+    <div class="vpn-panel__body">
+      <form method="get" class="vpn-filter-grid" data-live-filter-form>
+        <div>
+          <label for="worker_name">Name</label>
+          <input id="worker_name" class="form-control" type="search" name="name" value="{{ worker_filters.name }}" placeholder="RPi*, worker1@*" data-live-filter="name" autocomplete="off">
+        </div>
+        <div>
+          <label for="worker_queue">Queue</label>
+          <details class="vpn-filter-menu" data-filter-menu>
+            <summary id="worker_queue" data-filter-summary data-default-label="Any queue">Any queue</summary>
+            <div class="vpn-filter-menu__options">
+              <label class="vpn-filter-option">
+                <input type="checkbox" name="queue" value="vpn-generic" data-live-filter="queue" {% if "vpn-generic" in worker_filters.queue %}checked{% endif %}>
+                <span>Generic (vpn-generic)</span>
+              </label>
+              {% for choice in tenant_queue_choices %}
+                <label class="vpn-filter-option">
+                  <input type="checkbox" name="queue" value="{{ choice.queue }}" data-live-filter="queue" {% if choice.queue in worker_filters.queue %}checked{% endif %}>
+                  <span>{{ choice.name }} ({{ choice.queue }})</span>
+                </label>
+              {% endfor %}
+            </div>
+          </details>
+        </div>
+        <div>
+          <label for="worker_status">Status</label>
+          <details class="vpn-filter-menu" data-filter-menu>
+            <summary id="worker_status" data-filter-summary data-default-label="Any status">Any status</summary>
+            <div class="vpn-filter-menu__options">
+              <label class="vpn-filter-option">
+                <input type="checkbox" name="status" value="online" data-live-filter="status" {% if "online" in worker_filters.status %}checked{% endif %}>
+                <span>Online</span>
+              </label>
+              <label class="vpn-filter-option">
+                <input type="checkbox" name="status" value="offline" data-live-filter="status" {% if "offline" in worker_filters.status %}checked{% endif %}>
+                <span>Offline</span>
+              </label>
+              <label class="vpn-filter-option">
+                <input type="checkbox" name="status" value="disabled" data-live-filter="status" {% if "disabled" in worker_filters.status %}checked{% endif %}>
+                <span>Disabled</span>
+              </label>
+              <label class="vpn-filter-option">
+                <input type="checkbox" name="status" value="unknown" data-live-filter="status" {% if "unknown" in worker_filters.status %}checked{% endif %}>
+                <span>Unknown</span>
+              </label>
+              <label class="vpn-filter-option">
+                <input type="checkbox" name="status" value="stale" data-live-filter="status" {% if "stale" in worker_filters.status %}checked{% endif %}>
+                <span>Stale</span>
+              </label>
+            </div>
+          </details>
+        </div>
+        <div>
+          <label for="assignment_from">Assigned from</label>
+          <input id="assignment_from" class="form-control" type="date" name="assignment_from" value="{{ worker_filters.assignment_from }}" data-live-filter="assignment_from">
+        </div>
+        <div>
+          <label for="assignment_to">Assigned to</label>
+          <input id="assignment_to" class="form-control" type="date" name="assignment_to" value="{{ worker_filters.assignment_to }}" data-live-filter="assignment_to">
+        </div>
+        <div>
+          <label for="heartbeat_from">Heartbeat from</label>
+          <input id="heartbeat_from" class="form-control" type="date" name="heartbeat_from" value="{{ worker_filters.heartbeat_from }}" data-live-filter="heartbeat_from">
+        </div>
+        <div>
+          <label for="heartbeat_to">Heartbeat to</label>
+          <input id="heartbeat_to" class="form-control" type="date" name="heartbeat_to" value="{{ worker_filters.heartbeat_to }}" data-live-filter="heartbeat_to">
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary">Filter</button>
+          <a class="btn btn-default" href="{% url 'plugins:nautobot_vpn_manager:workers' %}">Reset</a>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="vpn-panel">
+    <div class="vpn-table-wrap">
+      <table class="vpn-worker-table">
+        <thead>
+          <tr>
+            <th><button class="vpn-sort-button" type="button" data-sort-button="worker" data-sort-direction="none">Worker <span class="vpn-sort-indicator" aria-hidden="true"></span></button></th>
+            <th><button class="vpn-sort-button" type="button" data-sort-button="status" data-sort-direction="none">Status <span class="vpn-sort-indicator" aria-hidden="true"></span></button></th>
+            <th><button class="vpn-sort-button" type="button" data-sort-button="host" data-sort-direction="none">Host <span class="vpn-sort-indicator" aria-hidden="true"></span></button></th>
+            <th><button class="vpn-sort-button" type="button" data-sort-button="current" data-sort-direction="none">Current queues <span class="vpn-sort-indicator" aria-hidden="true"></span></button></th>
+            <th><button class="vpn-sort-button" type="button" data-sort-button="desired" data-sort-direction="none">Desired queues <span class="vpn-sort-indicator" aria-hidden="true"></span></button></th>
+            <th><button class="vpn-sort-button" type="button" data-sort-button="assignment" data-sort-direction="none">Last assignment <span class="vpn-sort-indicator" aria-hidden="true"></span></button></th>
+            <th><button class="vpn-sort-button" type="button" data-sort-button="heartbeat" data-sort-direction="none">Last heartbeat <span class="vpn-sort-indicator" aria-hidden="true"></span></button></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for worker in remote_workers %}
+            <tr
+              data-worker-row
+              data-worker-name="{{ worker.worker_id }} {{ worker.hostname }} {{ worker.celery_node_name }}"
+              data-worker-queues="{{ worker.current_queues|join:' ' }} {{ worker.desired_queues|join:' ' }}"
+              data-worker-status="{{ worker.status|default:'unknown' }}{% if worker.stale %} stale{% endif %}"
+              data-worker-assignment="{{ worker.last_assignment|default:''|slice:':10' }}"
+              data-worker-heartbeat="{{ worker.last_heartbeat|default:''|slice:':10' }}"
+              data-sort-worker="{{ worker.worker_id }} {{ worker.hostname }} {{ worker.celery_node_name }}"
+              data-sort-status="{{ worker.status|default:'unknown' }} {{ worker.assignment_status|default:'unassigned' }}"
+              data-sort-host="{{ worker.hostname }} {{ worker.ip_address }} {{ worker.celery_node_name }}"
+              data-sort-current="{{ worker.current_queues|join:' ' }}"
+              data-sort-desired="{{ worker.desired_queues|join:' ' }}"
+              data-sort-assignment="{{ worker.last_assignment|default:'' }}"
+              data-sort-heartbeat="{{ worker.last_heartbeat|default:'' }}"
+            >
+              <td>
+                <div class="vpn-worker-name">
+                  {% if worker.is_online %}
+                    <span class="vpn-led vpn-led--up"></span>
+                  {% elif worker.stale %}
+                    <span class="vpn-led vpn-led--stale"></span>
+                  {% else %}
+                    <span class="vpn-led vpn-led--down"></span>
+                  {% endif %}
+                  <div>
+                    <strong>{{ worker.worker_id }}</strong><br>
+                    <span class="vpn-note">{{ worker.status_source|default:"piconfig heartbeat" }}</span>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="vpn-chip">{{ worker.status|default:"unknown"|upper }}</span>
+                <span class="vpn-chip vpn-chip--muted">{{ worker.assignment_status|default:"unassigned"|upper }}</span>
+                <br><span class="vpn-chip vpn-chip--muted">Queue drift {{ worker.queue_drift_status|default:"unknown"|upper }}</span>
+                <br><span class="vpn-note">{{ worker.queue_drift_summary|default:"-" }}</span>
+              </td>
+              <td>
+                {% if worker.hostname %}<code>{{ worker.hostname }}</code>{% else %}-{% endif %}<br>
+                {% if worker.ip_address %}<span class="vpn-note">{{ worker.ip_address }}</span>{% endif %}
+                {% if worker.celery_node_name %}<br><span class="vpn-note">{{ worker.celery_node_name }}</span>{% endif %}
+              </td>
+              <td>
+                {% if worker.current_queues %}
+                  <div class="vpn-chip-list">
+                    {% for queue_name in worker.current_queues %}
+                      <span class="vpn-chip">{{ queue_name }}</span>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                {% if worker.desired_queues %}
+                  <div class="vpn-chip-list">
+                    {% for queue_name in worker.desired_queues %}
+                      <span class="vpn-chip">{{ queue_name }}</span>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td><code>{{ worker.last_assignment|default:"-"|slice:":10" }}</code></td>
+              <td>
+                <code>{{ worker.last_heartbeat|default:"never"|slice:":10" }}</code>
+                {% if worker.heartbeat_age_seconds is not None %}
+                  <br><span class="vpn-note">{{ worker.heartbeat_age_seconds }}s ago</span>
+                {% endif %}
+              </td>
+              <td>
+                <a class="btn btn-primary btn-sm" href="{% url 'plugins:nautobot_vpn_manager:worker_detail' worker.worker_id %}">Manage</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8">
+                <div class="text-muted">No remote workers match the current filters.</div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script>
+  (function () {
+    var form = document.querySelector("[data-live-filter-form]");
+    if (!form) {
+      return;
+    }
+
+    var tbody = document.querySelector(".vpn-worker-table tbody");
+    var rows = Array.prototype.slice.call(document.querySelectorAll("[data-worker-row]"));
+    var fields = Array.prototype.slice.call(form.querySelectorAll("[data-live-filter]"));
+    var sortButtons = Array.prototype.slice.call(document.querySelectorAll("[data-sort-button]"));
+
+    function sortValue(row, key) {
+      return (row.dataset["sort" + key.charAt(0).toUpperCase() + key.slice(1)] || "").trim().toLowerCase();
+    }
+
+    function compareSortValues(left, right, direction) {
+      if (!left && right) {
+        return 1;
+      }
+      if (left && !right) {
+        return -1;
+      }
+      var result = left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+      return direction === "asc" ? result : -result;
+    }
+
+    function updateSortIndicators(activeButton, direction) {
+      sortButtons.forEach(function (button) {
+        var indicator = button.querySelector(".vpn-sort-indicator");
+        if (button === activeButton) {
+          button.dataset.sortDirection = direction;
+          if (indicator) {
+            indicator.textContent = direction === "asc" ? "^" : "v";
+          }
+        } else {
+          button.dataset.sortDirection = "none";
+          if (indicator) {
+            indicator.textContent = "";
+          }
+        }
+      });
+    }
+
+    function applyTableSort(button) {
+      if (!tbody) {
+        return;
+      }
+      var key = button.dataset.sortButton;
+      var direction = button.dataset.sortDirection === "asc" ? "desc" : "asc";
+      rows.sort(function (left, right) {
+        return compareSortValues(sortValue(left, key), sortValue(right, key), direction);
+      });
+      rows.forEach(function (row) {
+        tbody.appendChild(row);
+      });
+      updateSortIndicators(button, direction);
+    }
+
+    function checkedValues(name) {
+      return Array.prototype.slice.call(form.querySelectorAll("input[name='" + name + "']:checked")).map(function (input) {
+        return input.value.toLowerCase();
+      }).filter(Boolean);
+    }
+
+    function updateMenuSummary(menu) {
+      var summary = menu.querySelector("[data-filter-summary]");
+      var checked = Array.prototype.slice.call(menu.querySelectorAll("input[type='checkbox']:checked"));
+      if (!summary) {
+        return;
+      }
+      if (!checked.length) {
+        summary.textContent = summary.dataset.defaultLabel || "Any";
+      } else if (checked.length === 1) {
+        summary.textContent = checked[0].nextElementSibling.textContent;
+      } else {
+        summary.textContent = checked.length + " selected";
+      }
+    }
+
+    function includesAny(haystack, needles) {
+      if (!needles.length) {
+        return true;
+      }
+      return needles.some(function (needle) {
+        return haystack.indexOf(needle) !== -1;
+      });
+    }
+
+    function escapeRegExp(value) {
+      return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+    }
+
+    function matchesWildcard(value, pattern) {
+      if (!pattern) {
+        return true;
+      }
+      var wildcardPattern = pattern.indexOf("*") === -1 && pattern.indexOf("?") === -1 ? "*" + pattern + "*" : pattern;
+      var regexPattern = "^" + wildcardPattern.split("").map(function (character) {
+        if (character === "*") {
+          return ".*";
+        }
+        if (character === "?") {
+          return ".";
+        }
+        return escapeRegExp(character);
+      }).join("") + "$";
+      return new RegExp(regexPattern).test(value);
+    }
+
+    function applyLiveFilters() {
+      var name = (form.querySelector("[data-live-filter='name']").value || "").trim().toLowerCase();
+      var queues = checkedValues("queue");
+      var statuses = checkedValues("status");
+      var assignmentFrom = form.querySelector("[data-live-filter='assignment_from']").value || "";
+      var assignmentTo = form.querySelector("[data-live-filter='assignment_to']").value || "";
+      var heartbeatFrom = form.querySelector("[data-live-filter='heartbeat_from']").value || "";
+      var heartbeatTo = form.querySelector("[data-live-filter='heartbeat_to']").value || "";
+
+      rows.forEach(function (row) {
+        var rowName = (row.dataset.workerName || "").toLowerCase();
+        var rowQueues = (row.dataset.workerQueues || "").toLowerCase();
+        var rowStatus = (row.dataset.workerStatus || "").toLowerCase();
+        var rowAssignment = row.dataset.workerAssignment || "";
+        var rowHeartbeat = row.dataset.workerHeartbeat || "";
+        var visible = true;
+
+        if (name && !matchesWildcard(rowName, name)) {
+          visible = false;
+        }
+        if (visible && !includesAny(rowQueues, queues)) {
+          visible = false;
+        }
+        if (visible && !includesAny(rowStatus, statuses)) {
+          visible = false;
+        }
+        if (visible && assignmentFrom && (!rowAssignment || rowAssignment < assignmentFrom)) {
+          visible = false;
+        }
+        if (visible && assignmentTo && (!rowAssignment || rowAssignment > assignmentTo)) {
+          visible = false;
+        }
+        if (visible && heartbeatFrom && (!rowHeartbeat || rowHeartbeat < heartbeatFrom)) {
+          visible = false;
+        }
+        if (visible && heartbeatTo && (!rowHeartbeat || rowHeartbeat > heartbeatTo)) {
+          visible = false;
+        }
+
+        row.hidden = !visible;
+      });
+    }
+
+    fields.forEach(function (field) {
+      field.addEventListener("input", applyLiveFilters);
+      field.addEventListener("change", applyLiveFilters);
+    });
+    sortButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        applyTableSort(button);
+      });
+    });
+    Array.prototype.slice.call(form.querySelectorAll("[data-filter-menu]")).forEach(function (menu) {
+      updateMenuSummary(menu);
+      menu.addEventListener("change", function () {
+        updateMenuSummary(menu);
+      });
+    });
+    document.addEventListener("click", function (event) {
+      Array.prototype.slice.call(form.querySelectorAll("[data-filter-menu][open]")).forEach(function (menu) {
+        if (!menu.contains(event.target)) {
+          menu.removeAttribute("open");
+        }
+      });
+    });
+    applyLiveFilters();
+  })();
+</script>
+{% endblock %}

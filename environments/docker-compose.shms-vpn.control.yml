@@ -1,0 +1,45 @@
+---
+services:
+  vpn-control-api:
+    build:
+      context: ../vpn/VPN_Control_API
+    container_name: "vpn-control-api"
+    restart: unless-stopped
+    entrypoint:
+      - "uvicorn"
+      - "VPN_Control_API.app:app"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "5001"
+    env_file:
+      - "local.shms.env"
+      - "creds.shms.env"
+    environment:
+      VPN_PROJECT_ROOT: "/workspace"
+      VPN_PROJECT_ROOT_HOST: "/opt/nautobot"
+      VPN_CONTROL_API_ENV_FILE: "/workspace/environments/creds.shms.env"
+      VPN_SERVICE_COMPOSE_FILE: "docker-compose.shms-vpn.service.yml"
+      VPN_QUEUE_COMPOSE_FILE: "docker-compose.shms-vpn.queue.yml"
+      VPN_COMPOSE_PROJECT_PREFIX: "${VPN_COMPOSE_PROJECT_PREFIX:-shms-vpn}"
+      VPN_CONTAINER_PREFIX: "${VPN_CONTAINER_PREFIX:-shms-vpn}"
+      VPN_WORKER_CONTAINER_PREFIX: "${VPN_WORKER_CONTAINER_PREFIX:-celery-worker-vpn}"
+      VPN_WORKER_NAME_PREFIX: "${VPN_WORKER_NAME_PREFIX:-vpn-worker}"
+      VPN_NODE_NAME: "${VPN_NODE_NAME:-nb-ha-01}"
+      VPN_WORKER_SVC: "celery_worker_vpn"
+    volumes:
+      - "../:/workspace"
+      - "/opt/nautobot:/opt/nautobot:ro"
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /usr/libexec/docker/cli-plugins/docker-compose:/usr/libexec/docker/cli-plugins/docker-compose:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os, urllib.request; req = urllib.request.Request('http://127.0.0.1:5001/healthz', headers={'X-VPN-Control': os.environ.get('VPN_CONTROL_API_KEY', '')}); urllib.request.urlopen(req, timeout=5)\"",
+        ]
+      interval: "30s"
+      timeout: "10s"
+      start_period: "30s"
+      retries: 3

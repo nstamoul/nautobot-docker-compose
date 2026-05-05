@@ -13,6 +13,10 @@ menu_items = (
                         link="plugins:nautobot_vpn_manager:dashboard",
                         name="Dashboard",
                     ),
+                    NavMenuItem(
+                        link="plugins:nautobot_vpn_manager:workers",
+                        name="Worker Steering",
+                    ),
                 ),
             ),
         ),

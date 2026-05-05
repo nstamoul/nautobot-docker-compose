@@ -199,7 +199,7 @@
   }
   .vpn-remote-meta {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 14px;
     margin-bottom: 18px;
   }
@@ -451,127 +451,119 @@
 
   <section class="vpn-panel">
     <div class="vpn-panel__header">
-      <h3>Remote Worker Registry</h3>
+      <h3>Active Remote Workers</h3>
       <div class="vpn-panel__subtle">
-        Remote workers keep their own machine identity and receive queue assignments from SHMS. Desired queues below should match the worker runtime after its next heartbeat-driven restart.
+        Showing active remote workers only. Queue reassignment is handled on the dedicated Worker Steering page.
+        Rendered {% now "Y-m-d H:i:s T" %}.
       </div>
     </div>
     <div class="vpn-panel__body">
       {% if remote_worker_error %}
         <div class="alert alert-danger">{{ remote_worker_error }}</div>
       {% endif %}
+      {% if live_queue_error %}
+        <div class="alert alert-warning">Live Celery queue inspection unavailable; current queues fall back to piconfig assignment state. {{ live_queue_error }}</div>
+      {% endif %}
+
+      <div class="vpn-badge-grid">
+        <div class="vpn-badge">
+          <span class="vpn-badge__label">Active workers</span>
+          <span class="vpn-badge__value">{{ remote_workers|length }}</span>
+        </div>
+        <div class="vpn-badge">
+          <span class="vpn-badge__label">Registered workers</span>
+          <span class="vpn-badge__value">{{ all_remote_worker_count }}</span>
+        </div>
+        <div class="vpn-badge">
+          <span class="vpn-badge__label">Queue choices</span>
+          <span class="vpn-badge__value">{{ tenant_queue_choices|length }}</span>
+        </div>
+      </div>
 
       {% if remote_workers %}
         <div class="vpn-card-list">
           {% for worker in remote_workers %}
             <article class="vpn-card">
               <div class="vpn-card__header">
-                <div>
-                  <div class="vpn-card__title">
-                    <span class="vpn-led vpn-led--{% if worker.stale %}failed{% elif worker.assignment_status == 'assigned' %}up{% else %}starting{% endif %}"></span>
-                    <div>
-                      <h4>{{ worker.worker_id }}</h4>
-                      <div class="vpn-card__meta">
-                        <span class="vpn-chip">{{ worker.assignment_status|upper }}</span>
+                <div class="vpn-card__title">
+                  {% if worker.is_online %}
+                    <span class="vpn-led vpn-led--up"></span>
+                  {% elif worker.stale %}
+                    <span class="vpn-led vpn-led--stale"></span>
+                  {% else %}
+                    <span class="vpn-led vpn-led--down"></span>
+                  {% endif %}
+                  <div>
+                    <h4>{{ worker.worker_id }}</h4>
+                    <div class="vpn-card__meta">
+                      <span class="vpn-chip">{{ worker.status|default:"unknown"|upper }}</span>
+                      <span class="vpn-chip">{{ worker.status_source|default:"piconfig heartbeat" }}</span>
+                      <span class="vpn-chip">Queue drift {{ worker.queue_drift_status|default:"unknown"|upper }}</span>
+                      {% if worker.hostname %}
                         <span class="vpn-chip">{{ worker.hostname }}</span>
-                        {% if worker.platform %}
-                          <span class="vpn-chip">{{ worker.platform }}</span>
-                        {% endif %}
-                        {% if worker.software_version %}
-                          <span class="vpn-chip">Version {{ worker.software_version }}</span>
-                        {% endif %}
-                      </div>
+                      {% endif %}
+                      {% if worker.ip_address %}
+                        <span class="vpn-chip">{{ worker.ip_address }}</span>
+                      {% endif %}
                     </div>
                   </div>
                 </div>
-                <div class="vpn-helper text-right">
-                  Last heartbeat<br>
-                  <code>{{ worker.last_heartbeat|default:"never" }}</code>
-                </div>
+                <a class="btn btn-default" href="{% url 'plugins:nautobot_vpn_manager:worker_detail' worker.worker_id %}">Manage Worker</a>
               </div>
-
               <div class="vpn-card__body">
                 <dl class="vpn-remote-meta">
                   <div>
-                    <dt>Status</dt>
-                    <dd>{{ worker.status|default:"unknown"|capfirst }}</dd>
+                    <dt>Celery node</dt>
+                    <dd>{% if worker.celery_node_name %}<code>{{ worker.celery_node_name }}</code>{% else %}-{% endif %}</dd>
                   </div>
                   <div>
-                    <dt>Heartbeat age</dt>
-                    <dd>{% if worker.heartbeat_age_seconds is not None %}{{ worker.heartbeat_age_seconds }}s{% else %}-{% endif %}</dd>
+                    <dt>Current queues</dt>
+                    <dd>
+                      {% if worker.current_queues %}
+                        <div class="vpn-queue-list">
+                          {% for queue_name in worker.current_queues %}
+                            <code>{{ queue_name }}</code>
+                          {% endfor %}
+                        </div>
+                      {% else %}
+                        -
+                      {% endif %}
+                    </dd>
                   </div>
                   <div>
-                    <dt>Needs restart</dt>
-                    <dd>{% if worker.needs_restart %}Yes{% else %}No{% endif %}</dd>
+                    <dt>Desired queues</dt>
+                    <dd>
+                      {% if worker.desired_queues %}
+                        <div class="vpn-queue-list">
+                          {% for queue_name in worker.desired_queues %}
+                            <code>{{ queue_name }}</code>
+                          {% endfor %}
+                        </div>
+                      {% else %}
+                        -
+                      {% endif %}
+                    </dd>
                   </div>
                   <div>
-                    <dt>Registered</dt>
-                    <dd><code>{{ worker.registered_at|default:"-" }}</code></dd>
+                    <dt>Queue drift</dt>
+                    <dd>{{ worker.queue_drift_summary|default:"-" }}</dd>
                   </div>
                   <div>
-                    <dt>Last assignment</dt>
-                    <dd><code>{{ worker.last_assignment|default:"-" }}</code></dd>
+                    <dt>Last heartbeat</dt>
+                    <dd>
+                      <code>{{ worker.last_heartbeat|default:"-" }}</code>
+                      {% if worker.heartbeat_age_seconds is not None %}
+                        <br><span class="vpn-note">{{ worker.heartbeat_age_seconds }}s ago</span>
+                      {% endif %}
+                    </dd>
                   </div>
                 </dl>
-
-                <div class="vpn-workers">
-                  <div class="vpn-helper" style="margin-bottom: 10px;">Advertised queues</div>
-                  {% if worker.advertised_queues %}
-                    <div class="vpn-queue-list">
-                      {% for queue_name in worker.advertised_queues %}
-                        <code>{{ queue_name }}</code>
-                      {% endfor %}
-                    </div>
-                  {% else %}
-                    <div class="vpn-helper">Worker did not advertise queue restrictions.</div>
-                  {% endif %}
-                </div>
-
-                <div class="vpn-workers">
-                  <div class="vpn-helper" style="margin-bottom: 10px;">Desired queues</div>
-                  {% if worker.desired_queues %}
-                    <div class="vpn-queue-list">
-                      {% for queue_name in worker.desired_queues %}
-                        <code>{{ queue_name }}</code>
-                      {% endfor %}
-                    </div>
-                  {% else %}
-                    <div class="vpn-helper">No assignment. The worker should remain idle until queued work is assigned.</div>
-                  {% endif %}
-                </div>
-
-                <div class="vpn-workers">
-                  <div class="vpn-helper" style="margin-bottom: 10px;">Current queues</div>
-                  {% if worker.current_queues %}
-                    <div class="vpn-queue-list">
-                      {% for queue_name in worker.current_queues %}
-                        <code>{{ queue_name }}</code>
-                      {% endfor %}
-                    </div>
-                  {% else %}
-                    <div class="vpn-helper">Worker is not consuming any queues right now.</div>
-                  {% endif %}
-                </div>
-
-                <form method="post" action="{% url 'plugins:nautobot_vpn_manager:action' %}">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="assign_remote_worker">
-                  <input type="hidden" name="worker_id" value="{{ worker.worker_id }}">
-                  <div class="vpn-remote-actions">
-                    <div>
-                      <label for="desired_queues_{{ worker.worker_id }}">Desired queues</label>
-                      <input id="desired_queues_{{ worker.worker_id }}" class="form-control" type="text" name="desired_queues" value="{{ worker.desired_queues|join:', ' }}" placeholder="vpn-acme, vpn-generic">
-                      <div class="vpn-note">Clear the field to drain the worker. Queue names remain tenant-derived.</div>
-                    </div>
-                    <button type="submit" class="btn btn-default">Update</button>
-                  </div>
-                </form>
               </div>
             </article>
           {% endfor %}
         </div>
       {% else %}
-        <div class="text-muted">No remote workers have registered yet.</div>
+        <div class="text-muted">No active remote workers are visible right now.</div>
       {% endif %}
     </div>
   </section>

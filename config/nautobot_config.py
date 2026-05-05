@@ -209,6 +209,11 @@ PLUGINS_CONFIG = {
     "nautobot_vpn_manager": {
         "control_api_url": os.getenv("VPN_CONTROL_API_URL", "http://vpn-control-api:5001"),
         "control_api_key": os.getenv("VPN_CONTROL_API_KEY", ""),
+        "piconfig_api_url": os.getenv("PICONFIG_API_URL", ""),
+        "piconfig_client_cert": os.getenv("PICONFIG_NAUTOBOT_CLIENT_CERT", ""),
+        "piconfig_client_key": os.getenv("PICONFIG_NAUTOBOT_CLIENT_KEY", ""),
+        "piconfig_ca_bundle": os.getenv("PICONFIG_CA_BUNDLE", ""),
+        "piconfig_verify_tls": is_truthy(os.getenv("PICONFIG_VERIFY_TLS", "true")),
         "request_timeout_seconds": int(os.getenv("VPN_CONTROL_API_TIMEOUT", "30")),
     },
     "nautobot_capacity_metrics": {
@@ -324,4 +329,13 @@ _existing_queues = globals().get("CELERY_TASK_QUEUES")
 if not _existing_queues:
     _existing_queues = (Queue("default"), Queue("celery"))
 
-CELERY_TASK_QUEUES = tuple(_existing_queues) + (Queue("vpn"),)
+_configured_vpn_queues = ["vpn", "vpn-generic"]
+for _queue_name in os.getenv("VPN_TENANT_QUEUES_CSV", os.getenv("CELERY_TENANT_QUEUES_CSV", "")).split(","):
+    _queue_name = _queue_name.strip()
+    if _queue_name and _queue_name not in _configured_vpn_queues:
+        _configured_vpn_queues.append(_queue_name)
+
+_existing_queue_names = {getattr(queue, "name", str(queue)) for queue in _existing_queues}
+CELERY_TASK_QUEUES = tuple(_existing_queues) + tuple(
+    Queue(queue_name) for queue_name in _configured_vpn_queues if queue_name not in _existing_queue_names
+)

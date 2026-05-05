@@ -23,6 +23,11 @@ class NautobotVpnManagerConfig(NautobotAppConfig):
     default_settings = {
         "control_api_url": "http://vpn-control-api:5001",
         "control_api_key": "",
+        "piconfig_api_url": "",
+        "piconfig_client_cert": "",
+        "piconfig_client_key": "",
+        "piconfig_ca_bundle": "",
+        "piconfig_verify_tls": True,
         "request_timeout_seconds": 30,
     }
     home_view_name = "plugins:nautobot_vpn_manager:dashboard"

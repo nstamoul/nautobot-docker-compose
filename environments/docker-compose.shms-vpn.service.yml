@@ -1,0 +1,94 @@
+x-shms-hosts: &shms-hosts
+  - "sot3.shms.local:172.20.11.210"
+  - "vault.shms.local:172.20.11.214"
+  - "nb-ha-01.shms.local:172.20.11.211"
+  - "nb-ha-02.shms.local:172.20.11.212"
+  - "nb-etcd-witness.shms.local:172.20.11.213"
+  - "nb-db-vip.shms.local:172.20.11.215"
+  - "nb-redis-vip.shms.local:172.20.11.215"
+  - "s3.minio.shms.local:172.20.11.215"
+  - "console.minio.shms.local:172.20.11.215"
+  - "nb-minio-01.shms.local:172.20.11.216"
+  - "nb-minio-02.shms.local:172.20.11.217"
+  - "nb-minio-03.shms.local:172.20.11.218"
+  - "nb-minio-04.shms.local:172.20.11.219"
+
+---
+services:
+  vpn:
+    build:
+      context: ../vpn/vpn
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+      - /dev/ppp:/dev/ppp
+    env_file:
+      - "local.shms.env"
+      - "creds.shms.env"
+    environment:
+      CUSTOMER: "${CUSTOMER:-}"
+      VPN_SLOT_SLUG: "${VPN_SLOT_SLUG:-}"
+      USE_VAULT: "${USE_VAULT:-true}"
+      VAULT_ADDR: "${VAULT_ADDR:-}"
+      VAULT_TOKEN: "${VAULT_TOKEN:-}"
+      VAULT_NAMESPACE: "${VAULT_NAMESPACE:-}"
+      VAULT_CACERT: "${VAULT_CACERT:-/opt/nautobot/certs/vault-ca.crt}"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+      NO_PROXY: "127.0.0.1,localhost,.shms.local,vault.shms.local,172.20.11.214"
+      no_proxy: "127.0.0.1,localhost,.shms.local,vault.shms.local,172.20.11.214"
+      OPENCONNECT_EXTRA_INPUT: "${OPENCONNECT_EXTRA_INPUT:-}"
+      OPENCONNECT_SECOND_PASSWORD: "${OPENCONNECT_SECOND_PASSWORD:-}"
+      OPENCONNECT_BANNER_RESPONSE: "${OPENCONNECT_BANNER_RESPONSE:-}"
+      CISCO_SECOND_PASSWORD: "${CISCO_SECOND_PASSWORD:-}"
+      CISCO_BANNER_RESPONSE: "${CISCO_BANNER_RESPONSE:-}"
+      CISCO_AUTHGROUP: "${CISCO_AUTHGROUP:-}"
+      EXTRA_ARGS: "${EXTRA_ARGS:-}"
+      VPN_SET_DNS: "${VPN_SET_DNS:-false}"
+      VPN_PASSTHROUGH_DOMAINS: "${VPN_PASSTHROUGH_DOMAINS:-}"
+      VPN_ENABLE_AUTO_RESTART: "${VPN_ENABLE_AUTO_RESTART:-true}"
+      VPN_MONITOR_INTERVAL: "${VPN_MONITOR_INTERVAL:-5}"
+      VPN_MONITOR_COOLDOWN: "${VPN_MONITOR_COOLDOWN:-60}"
+      VPN_QUEUE: "${VPN_QUEUE:-vpn}"
+    extra_hosts:
+      - "sot3.shms.local:172.20.11.210"
+      - "vault.shms.local:172.20.11.214"
+      - "nb-ha-01.shms.local:172.20.11.211"
+      - "nb-ha-02.shms.local:172.20.11.212"
+      - "nb-etcd-witness.shms.local:172.20.11.213"
+      - "nb-db-vip.shms.local:172.20.11.215"
+      - "nb-redis-vip.shms.local:172.20.11.215"
+      - "s3.minio.shms.local:172.20.11.215"
+      - "console.minio.shms.local:172.20.11.215"
+      - "nb-minio-01.shms.local:172.20.11.216"
+      - "nb-minio-02.shms.local:172.20.11.217"
+      - "nb-minio-03.shms.local:172.20.11.218"
+      - "nb-minio-04.shms.local:172.20.11.219"
+    volumes:
+      - vpn_certs:/vpn/certs
+      - ../vpn/configs:/vpn/configs:ro
+      - /opt/nautobot/certs:/opt/nautobot/certs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+      - vpn_network
+    restart: unless-stopped
+    labels:
+      - "vpn.controlled=true"
+      - "vpn.role=appliance"
+      - "vpn.customer=${CUSTOMER:-}"
+      - "vpn.slot=${VPN_SLOT_SLUG:-}"
+      - "vpn.queue=${VPN_QUEUE:-vpn}"
+
+networks:
+  vpn_network:
+    {}
+
+volumes:
+  vpn_certs: {}

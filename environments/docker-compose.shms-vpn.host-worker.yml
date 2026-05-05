@@ -1,0 +1,54 @@
+---
+services:
+  celery_worker_vpn:
+    image: "shms/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}"
+    network_mode: "host"
+    restart: unless-stopped
+    tty: true
+    env_file:
+      - "local.shms.env"
+      - "creds.shms.env"
+    healthcheck:
+      disable: true
+    volumes:
+      - "/opt/nautobot/git:/opt/nautobot/git"
+      - "../jobs:/opt/nautobot/jobs"
+      - "../scripts:/opt/nautobot/scripts:ro"
+      - "../patches_runtime:/opt/nautobot/patches_runtime:ro"
+      - "/data/nautobot/media:/opt/nautobot/media"
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+    environment:
+      CUSTOMER: "${CUSTOMER:-}"
+      VPN_SLOT_SLUG: "${VPN_SLOT_SLUG:-}"
+      NAUTOBOT_CELERY_WORKER_QUEUES: "${VPN_QUEUE:-vpn}"
+      CELERY_WORKER_CONCURRENCY: "${VPN_WORKER_CONCURRENCY:-4}"
+      VPN_WORKER_NAME_PREFIX: "${VPN_WORKER_NAME_PREFIX:-vpn-worker}"
+      HASHICORP_VAULT_URL: "${HASHICORP_VAULT_URL:-https://vault.shms.local:8200}"
+      VAULT_ADDR: "${VAULT_ADDR:-https://vault.shms.local:8200}"
+      NAUTOBOT_MINIO_ENDPOINT_URL: "${NAUTOBOT_MINIO_ENDPOINT_URL:-http://172.20.11.215}"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+      NO_PROXY: "127.0.0.1,localhost,.shms.local,vault.shms.local,172.20.11.214,172.20.11.215,vpn-control-api"
+      no_proxy: "127.0.0.1,localhost,.shms.local,vault.shms.local,172.20.11.214,172.20.11.215,vpn-control-api"
+    labels:
+      - "vpn.controlled=true"
+      - "vpn.dependent=true"
+      - "vpn.role=worker"
+      - "vpn.parent=host-cisco-secure-client"
+      - "vpn.customer=${CUSTOMER:-}"
+      - "vpn.slot=${VPN_SLOT_SLUG:-}"
+      - "vpn.queue=${VPN_QUEUE:-vpn}"
+    entrypoint:
+      - "sh"
+      - "-c"
+      - >
+        git config --global --add safe.directory /opt/nautobot/git/shms_nautobot_jobs_repo >/dev/null 2>&1 || true;
+        python -c "import os; os.environ['NAUTOBOT_CONFIG'] = '/opt/nautobot/nautobot_config.py';
+        from nautobot.core.cli import load_settings; load_settings(os.environ['NAUTOBOT_CONFIG']);
+        import django; django.setup();
+        exec(open('/opt/nautobot/scripts/bootstrap_shms_git_repositories.py').read(), {'__name__': '__main__'})"
+        && exec nautobot-server celery worker -l $$NAUTOBOT_LOG_LEVEL --events -Q ${VPN_QUEUE:-vpn} -n ${VPN_WORKER_NAME_PREFIX:-vpn-worker}@$$HOSTNAME

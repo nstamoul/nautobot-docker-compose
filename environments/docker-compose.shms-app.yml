@@ -1,0 +1,110 @@
+---
+x-shms-hosts: &shms-hosts
+  - "sot3.shms.local:172.20.11.210"
+  - "vault.shms.local:172.20.11.214"
+  - "nb-ha-01.shms.local:172.20.11.211"
+  - "nb-ha-02.shms.local:172.20.11.212"
+  - "nb-etcd-witness.shms.local:172.20.11.213"
+  - "nb-db-vip.shms.local:172.20.11.215"
+  - "nb-redis-vip.shms.local:172.20.11.215"
+  - "s3.minio.shms.local:172.20.11.215"
+  - "console.minio.shms.local:172.20.11.215"
+  - "nb-minio-01.shms.local:172.20.11.216"
+  - "nb-minio-02.shms.local:172.20.11.217"
+  - "nb-minio-03.shms.local:172.20.11.218"
+  - "nb-minio-04.shms.local:172.20.11.219"
+
+x-nautobot-build: &nautobot-build
+  build:
+    args:
+      NAUTOBOT_VERSION: "${NAUTOBOT_VERSION}"
+      PYTHON_VER: "${PYTHON_VER}"
+      NAUTOBOT_BASE_IMAGE: "${NAUTOBOT_BASE_IMAGE:-ghcr.io/nautobot/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}}"
+      NAUTOBOT_DEV_IMAGE: "${NAUTOBOT_DEV_IMAGE:-ghcr.io/nautobot/nautobot-dev:${NAUTOBOT_VERSION}-py${PYTHON_VER}}"
+    context: "../"
+    target: "nautobot"
+    dockerfile: "environments/Dockerfile"
+
+x-nautobot-base: &nautobot-base
+  image: "shms/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}"
+  env_file:
+    - "local.shms.env"
+    - "creds.shms.env"
+  extra_hosts: *shms-hosts
+  restart: unless-stopped
+  tty: true
+  volumes:
+    - "../jobs:/opt/nautobot/jobs"
+    - "/opt/nautobot/git:/opt/nautobot/git"
+    - "../patches_runtime:/opt/nautobot/patches_runtime:ro"
+    - "/data/nautobot/media:/opt/nautobot/media"
+    - "/data/nautobot/static:/opt/nautobot/static"
+    - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+    - "/etc/localtime:/etc/localtime:ro"
+    - "/etc/timezone:/etc/timezone:ro"
+
+services:
+  nautobot:
+    container_name: "nautobot"
+    <<: [*nautobot-base, *nautobot-build]
+    entrypoint: []
+    command:
+      - "sh"
+      - "-c"
+      - >-
+        git config --global --add safe.directory /opt/nautobot/git/shms_nautobot_jobs_repo >/dev/null 2>&1 || true;
+        nautobot-server runserver --insecure --noreload 0.0.0.0:8080
+    ports:
+      - "8081:8080"
+    healthcheck:
+      interval: "30s"
+      timeout: "10s"
+      start_period: "60s"
+      retries: 3
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import sys, urllib.request; req = urllib.request.Request('http://127.0.0.1:8080/login/', headers={'Host': 'sot3.shms.local'}); urllib.request.urlopen(req, timeout=5); sys.exit(0)\" >/dev/null 2>&1 || exit 1",
+        ]
+
+  celery_worker:
+    container_name: "celery_worker"
+    depends_on:
+      nautobot:
+        condition: "service_started"
+    healthcheck:
+      disable: true
+    entrypoint: []
+    command:
+      - "sh"
+      - "-c"
+      - >-
+        git config --global --add safe.directory /opt/nautobot/git/shms_nautobot_jobs_repo >/dev/null 2>&1 || true;
+        nautobot-server celery worker -l $$NAUTOBOT_LOG_LEVEL --events -Q default,breakglass
+    volumes:
+      - "../jobs:/opt/nautobot/jobs"
+      - "/opt/nautobot/git:/opt/nautobot/git"
+      - "../patches_runtime:/opt/nautobot/patches_runtime:ro"
+      - "/data/nautobot/media:/opt/nautobot/media"
+      - "/data/nautobot/static:/opt/nautobot/static"
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    <<: *nautobot-base
+
+  celery_beat:
+    container_name: "celery_beat"
+    depends_on:
+      nautobot:
+        condition: "service_started"
+    healthcheck:
+      disable: true
+    entrypoint: []
+    command:
+      - "sh"
+      - "-c"
+      - >-
+        git config --global --add safe.directory /opt/nautobot/git/shms_nautobot_jobs_repo >/dev/null 2>&1 || true;
+        nautobot-server celery beat -l $$NAUTOBOT_LOG_LEVEL
+    <<: *nautobot-base
