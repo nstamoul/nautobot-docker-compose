@@ -143,3 +143,28 @@ class SecretResolverTest(TestCase):
         )
 
         self.assertEqual(values, {"client_id": "env-client-id", "client_secret": "vault-secret"})
+
+    def test_populate_env_from_vault_fills_only_missing_values(self):
+        """Startup population should preserve explicit env values and fill missing ones from Vault."""
+        os.environ.update(
+            {
+                "EXISTING_SECRET": "from-env",
+                "VAULT_ADDR": "https://vault.example.invalid",
+                "VAULT_TOKEN": "legacy-token",
+            }
+        )
+        http_session = MagicMock()
+        http_session.get.return_value = FakeResponse(
+            {"data": {"data": {"EXISTING_SECRET": "from-vault", "MISSING_ALIAS": "vault-missing"}}}
+        )
+
+        resolver = SecretResolver.from_env(http_session=http_session)
+        populated = resolver.populate_env_from_vault(
+            env_names=("EXISTING_SECRET", "MISSING_SECRET"),
+            vault=VaultSecretRef(mount="kv", path="nautobot/shms/app"),
+            keys_by_env={"MISSING_SECRET": ("MISSING_ALIAS", "MISSING_SECRET")},
+        )
+
+        self.assertEqual(populated, ["MISSING_SECRET"])
+        self.assertEqual(os.environ["EXISTING_SECRET"], "from-env")
+        self.assertEqual(os.environ["MISSING_SECRET"], "vault-missing")

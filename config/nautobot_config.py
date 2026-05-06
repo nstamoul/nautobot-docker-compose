@@ -8,9 +8,73 @@ from urllib.parse import quote
 
 import ldap
 from django_auth_ldap.config import LDAPGroupQuery, LDAPSearch, NestedActiveDirectoryGroupType
-from nautobot.core.settings import *  # noqa: F403  # pylint: disable=wildcard-import,unused-wildcard-import
 from nautobot.core.settings_funcs import is_truthy
 from kombu import Queue
+
+LOGGER = logging.getLogger(__name__)
+
+
+_STARTUP_SECRET_ENV_NAMES = (
+    "NAUTOBOT_AUTH_LDAP_BIND_PASSWORD",
+    "NAUTOBOT_CREATE_SUPERUSER",
+    "NAUTOBOT_DB_PASSWORD",
+    "NAUTOBOT_MINIO_ACCESS_KEY",
+    "NAUTOBOT_MINIO_SECRET_KEY",
+    "NAUTOBOT_NAPALM_PASSWORD",
+    "NAUTOBOT_NAPALM_USERNAME",
+    "NAUTOBOT_REDIS_PASSWORD",
+    "NAUTOBOT_SECRET_KEY",
+    "NAUTOBOT_SUPERUSER_API_TOKEN",
+    "NAUTOBOT_SUPERUSER_EMAIL",
+    "NAUTOBOT_SUPERUSER_NAME",
+    "NAUTOBOT_SUPERUSER_PASSWORD",
+    "POSTGRES_PASSWORD",
+    "PGPASSWORD",
+    "CISCO_MODERN_API_CLIENT_ID",
+    "CISCO_MODERN_API_SECRET",
+    "VPN_CONTROL_API_KEY",
+)
+
+
+def _load_startup_secrets_from_vault():
+    """Populate startup-critical env values from Vault before Nautobot settings initialize."""
+    if not is_truthy(os.getenv("SHMS_STARTUP_SECRETS_ENABLED", "true")):
+        return
+
+    vault_path = os.getenv("SHMS_STARTUP_SECRETS_VAULT_PATH", "nautobot/shms/app").strip("/")
+    if not vault_path:
+        return
+
+    try:
+        from shms_secret_resolver import SecretResolver, VaultSecretRef
+
+        resolver = SecretResolver.from_env(logger=LOGGER)
+        populated = resolver.populate_env_from_vault(
+            env_names=_STARTUP_SECRET_ENV_NAMES,
+            vault=VaultSecretRef(
+                mount=os.getenv("SHMS_STARTUP_SECRETS_VAULT_MOUNT", "kv"),
+                path=vault_path,
+                kv_version=os.getenv("SHMS_STARTUP_SECRETS_KV_VERSION", "v2"),
+            ),
+            keys_by_env={
+                "CISCO_MODERN_API_CLIENT_ID": ("CISCO_MODERN_API_CLIENT_ID", "API_TOKEN_CLIENT_ID"),
+                "CISCO_MODERN_API_SECRET": ("CISCO_MODERN_API_SECRET", "API_TOKEN_CLIENT_PASS"),
+            },
+        )
+        if populated:
+            LOGGER.info(
+                "Loaded %d SHMS startup secret values from Vault path %s/%s",
+                len(populated),
+                os.getenv("SHMS_STARTUP_SECRETS_VAULT_MOUNT", "kv").strip("/"),
+                vault_path,
+            )
+    except Exception as exc:  # pragma: no cover - startup fallback path
+        LOGGER.warning("Unable to load SHMS startup secrets from Vault: %s", exc)
+
+
+_load_startup_secrets_from_vault()
+
+from nautobot.core.settings import *  # noqa: F403,E402  # pylint: disable=wildcard-import,unused-wildcard-import,wrong-import-position
 
 #
 # Debug / Logging
@@ -19,7 +83,6 @@ from kombu import Queue
 DEBUG = is_truthy(os.getenv("NAUTOBOT_DEBUG", False))
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 LOG_LEVEL = "DEBUG" if DEBUG else "INFO"
-LOGGER = logging.getLogger(__name__)
 TIME_ZONE = os.getenv("NAUTOBOT_TIME_ZONE", os.getenv("TIME_ZONE", "UTC"))
 USE_TZ = True
 CELERY_TIMEZONE = TIME_ZONE

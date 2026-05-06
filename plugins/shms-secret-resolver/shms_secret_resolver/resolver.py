@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence
+from typing import Mapping, MutableMapping, Sequence
 
 import requests
 
@@ -174,6 +174,42 @@ class SecretResolver:
             if not values[field_name]:
                 self._log_source("unresolved", vault=vault, field=field_name)
         return values
+
+    def populate_env_from_vault(
+        self,
+        *,
+        env_names: Sequence[str],
+        vault: VaultSecretRef,
+        keys_by_env: Mapping[str, Sequence[str]] | None = None,
+        overwrite: bool = False,
+    ) -> list[str]:
+        """Populate missing process environment values from one Vault secret.
+
+        Returns the environment variable names that were populated. Values are never logged.
+        """
+        if not isinstance(self.env, MutableMapping):
+            self.logger.info("Cannot populate immutable environment mapping from Vault.")
+            return []
+
+        missing_env_names = [name for name in env_names if overwrite or not self.env.get(name)]
+        if not missing_env_names:
+            return []
+
+        secret_data = self._read_vault_secret(vault)
+        populated: list[str] = []
+        key_map = keys_by_env or {}
+        for env_name in missing_env_names:
+            candidate_keys = tuple(key_map.get(env_name, ())) + (env_name,)
+            for key in candidate_keys:
+                value = secret_data.get(key)
+                if value:
+                    self.env[env_name] = str(value)
+                    populated.append(env_name)
+                    self._log_source(self._vault_source(), vault=vault, key=key, field=env_name)
+                    break
+            if env_name not in populated:
+                self._log_source("unresolved", vault=vault, field=env_name)
+        return populated
 
     def _read_vault_secret(self, vault: VaultSecretRef) -> dict[str, object]:
         """Read a Vault KV secret payload."""
