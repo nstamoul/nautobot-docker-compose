@@ -25,6 +25,7 @@ nautobot-ui-plugin = "^1.0.0"
 nautobot-connectivity-matrix = {path = "plugins/nautobot-app-nautobot-connectivity-matrix"}
 nbcot = {path = "plugins/nautobot-app-nbcot"}
 nautobot-vpn-manager = {path = "plugins/nautobot-app-vpn-manager"}
+shms-secret-resolver = {path = "plugins/shms-secret-resolver"}
 nautobot-plugin-nornir = "^3.0.0"
 ipaddr = "^2.2.0"
 openpyxl = "^3.1.5"

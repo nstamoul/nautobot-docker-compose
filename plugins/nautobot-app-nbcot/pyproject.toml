@@ -31,6 +31,7 @@ python = ">=3.10,<3.15"
 # Used for local development
 nautobot = ">=3.0.0,<4.0.0"
 requests = ">=2.31,<3.0"
+shms-secret-resolver = {path = "../shms-secret-resolver"}
 
 [tool.poetry.group.dev.dependencies]
 coverage = "*"

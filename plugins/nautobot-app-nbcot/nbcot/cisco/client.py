@@ -9,6 +9,7 @@ from typing import Any
 
 import requests
 from django.conf import settings
+from shms_secret_resolver import SecretResolver, VaultSecretRef
 
 from nbcot.constants import DEFAULT_TOKEN_URL, ENVIRONMENT_ENDPOINTS
 
@@ -35,60 +36,28 @@ CCWR_PARTY_TYPE_MAP = {
 }
 
 
-def _first_env(*names: str) -> str:
-    """Return the first non-empty environment variable from names."""
-    for name in names:
-        value = os.getenv(name)
-        if value:
-            return value
-    return ""
-
-
-def _load_vault_credentials() -> tuple[str, str]:
-    """Resolve Cisco OAuth credentials from the configured Vault KV secret."""
-    vault_url = os.getenv("HASHICORP_VAULT_URL")
-    vault_token = os.getenv("HASHICORP_VAULT_TOKEN")
-    if not vault_url or not vault_token:
-        return "", ""
-
-    vault_mount = os.getenv("CISCO_API_VAULT_MOUNT", "kv").strip("/")
-    vault_path = os.getenv("CISCO_API_VAULT_PATH", "CISCO_API_CONSOLE").strip("/")
-    vault_namespace = os.getenv("HASHICORP_VAULT_NAMESPACE") or os.getenv("VAULT_NAMESPACE")
-
-    headers = {"X-Vault-Token": vault_token}
-    if vault_namespace:
-        headers["X-Vault-Namespace"] = vault_namespace
-
-    verify = os.getenv("REQUESTS_CA_BUNDLE") or os.getenv("SSL_CERT_FILE") or True
-    response = requests.get(
-        f"{vault_url.rstrip('/')}/v1/{vault_mount}/data/{vault_path}",
-        headers=headers,
-        verify=verify,
-        timeout=15,
-    )
-    response.raise_for_status()
-    secret_data = response.json().get("data", {}).get("data", {})
-    return (
-        secret_data.get("CISCO_MODERN_API_CLIENT_ID") or secret_data.get("API_TOKEN_CLIENT_ID") or "",
-        secret_data.get("CISCO_MODERN_API_SECRET") or secret_data.get("API_TOKEN_CLIENT_PASS") or "",
-    )
-
-
 def _resolve_client_credentials(config: dict[str, Any]) -> tuple[str, str]:
     """Resolve Cisco OAuth credentials from plugin config, environment, then Vault."""
-    client_id = (
-        config.get("client_id")
-        or _first_env("CISCO_MODERN_API_CLIENT_ID", "NBCOT_CLIENT_ID", "API_TOKEN_CLIENT_ID")
-    )
-    client_secret = (
-        config.get("client_secret")
-        or _first_env("CISCO_MODERN_API_SECRET", "NBCOT_CLIENT_SECRET", "API_TOKEN_CLIENT_PASS")
-    )
+    client_id = config.get("client_id") or ""
+    client_secret = config.get("client_secret") or ""
     if client_id and client_secret:
         return client_id, client_secret
 
-    vault_client_id, vault_client_secret = _load_vault_credentials()
-    return client_id or vault_client_id, client_secret or vault_client_secret
+    vault_mount = os.getenv("CISCO_API_VAULT_MOUNT", "kv").strip("/")
+    vault_path = os.getenv("CISCO_API_VAULT_PATH", "CISCO_API_CONSOLE").strip("/")
+    resolver = SecretResolver.from_env()
+    credentials = resolver.resolve_mapping(
+        env_names_by_field={
+            "client_id": ("CISCO_MODERN_API_CLIENT_ID", "NBCOT_CLIENT_ID", "API_TOKEN_CLIENT_ID"),
+            "client_secret": ("CISCO_MODERN_API_SECRET", "NBCOT_CLIENT_SECRET", "API_TOKEN_CLIENT_PASS"),
+        },
+        vault=VaultSecretRef(mount=vault_mount, path=vault_path),
+        vault_keys_by_field={
+            "client_id": ("CISCO_MODERN_API_CLIENT_ID", "API_TOKEN_CLIENT_ID"),
+            "client_secret": ("CISCO_MODERN_API_SECRET", "API_TOKEN_CLIENT_PASS"),
+        },
+    )
+    return client_id or credentials.get("client_id", ""), client_secret or credentials.get("client_secret", "")
 
 
 @dataclass

@@ -72,8 +72,8 @@ class CiscoSettingsTest(TestCase):
         self.assertEqual(settings_obj.client_secret, "legacy-client-secret")
 
     @override_settings(PLUGINS_CONFIG={"nbcot": {"graphql_endpoint": "https://example.invalid/graphql"}})
-    def test_load_uses_vault_credentials_when_env_credentials_missing(self):
-        """Client settings should resolve Cisco OAuth credentials from the configured Vault path."""
+    def test_load_uses_shared_resolver_when_env_credentials_missing(self):
+        """Client settings should resolve Cisco OAuth credentials through the shared resolver."""
         for key in (
             "CISCO_MODERN_API_CLIENT_ID",
             "CISCO_MODERN_API_SECRET",
@@ -84,30 +84,16 @@ class CiscoSettingsTest(TestCase):
         ):
             self.addCleanup(os.environ.pop, key, None)
             os.environ.pop(key, None)
-        vault_env = {
-            "HASHICORP_VAULT_URL": "https://vault.example.invalid",
-            "HASHICORP_VAULT_TOKEN": "fake-token",
-            "CISCO_API_VAULT_PATH": "CISCO_API_CONSOLE",
-            "CISCO_API_VAULT_MOUNT": "kv",
+        resolver = MagicMock()
+        resolver.resolve_mapping.return_value = {
+            "client_id": "vault-client-id",
+            "client_secret": "vault-client-secret",
         }
-        for key, value in vault_env.items():
-            self.addCleanup(os.environ.pop, key, None)
-            os.environ[key] = value
-
-        with patch("nbcot.cisco.client.requests.get") as mock_get:
-            mock_get.return_value = FakeResponse(
-                {
-                    "data": {
-                        "data": {
-                            "API_TOKEN_CLIENT_ID": "vault-client-id",
-                            "API_TOKEN_CLIENT_PASS": "vault-client-secret",
-                        }
-                    }
-                }
-            )
-
+        with patch("nbcot.cisco.client.SecretResolver.from_env", return_value=resolver) as from_env:
             settings_obj = CiscoSettings.load()
 
+        from_env.assert_called_once()
+        resolver.resolve_mapping.assert_called_once()
         self.assertEqual(settings_obj.client_id, "vault-client-id")
         self.assertEqual(settings_obj.client_secret, "vault-client-secret")
 
