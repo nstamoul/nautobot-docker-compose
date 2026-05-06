@@ -28,8 +28,10 @@ x-nautobot-build: &nautobot-build
 x-nautobot-base: &nautobot-base
   image: "shms/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}"
   env_file:
-    - "local.shms.env"
-    - "creds.shms.env"
+    - path: "local.shms.env"
+      required: true
+    - path: "creds.shms.env"
+      required: false
   extra_hosts: *shms-hosts
   restart: unless-stopped
   tty: true
