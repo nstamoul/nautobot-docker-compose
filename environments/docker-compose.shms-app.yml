@@ -49,13 +49,22 @@ services:
   nautobot:
     container_name: "nautobot"
     <<: [*nautobot-base, *nautobot-build]
-    entrypoint: []
-    command:
+    environment:
+      NAUTOBOT_UWSGI_PROCESSES: "${NAUTOBOT_UWSGI_PROCESSES:-5}"
+      NAUTOBOT_UWSGI_LISTEN: "${NAUTOBOT_UWSGI_LISTEN:-1024}"
+      NAUTOBOT_UWSGI_BUFFER_SIZE: "${NAUTOBOT_UWSGI_BUFFER_SIZE:-16384}"
+    entrypoint:
       - "sh"
       - "-c"
       - >-
         git config --global --add safe.directory /opt/nautobot/git/shms_nautobot_jobs_repo >/dev/null 2>&1 || true;
-        nautobot-server runserver --insecure --noreload 0.0.0.0:8080
+        exec /docker-entrypoint.sh "$@"
+      - "--"
+    command:
+      - "nautobot-server"
+      - "start"
+      - "--ini"
+      - "/opt/nautobot/uwsgi.ini"
     ports:
       - "8081:8080"
     healthcheck:
