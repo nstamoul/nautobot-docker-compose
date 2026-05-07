@@ -75,11 +75,17 @@ class OrderSearchForm(forms.Form):
     """Ad hoc Cisco search form."""
 
     environment = forms.ChoiceField(choices=CiscoEnvironmentChoices, label="Environment")
-    order_number = forms.CharField(required=False, label="Order Number")
-    customer_po_number = forms.CharField(required=False, label="Customer PO Number")
-    account_name = forms.CharField(required=False, label="Account Name")
-    account_number = forms.CharField(required=False, label="Account Number")
-    status = forms.CharField(required=False, label="Status")
+    sales_order_number = forms.CharField(required=False, label="Sales Order No.")
+    order_name = forms.CharField(required=False, label="Order Name")
+    web_order_id = forms.CharField(required=False, label="Web Order ID")
+    subscription_id = forms.CharField(required=False, label="Subscription ID")
+    purchase_order = forms.CharField(required=False, label="Purchase Order")
+    deal_id = forms.CharField(required=False, label="Deal ID")
+    end_customer_name = forms.CharField(required=False, label="End Customer Name")
+    end_customer_number = forms.CharField(required=False, label="End Customer No.")
+    end_customer_po_number = forms.CharField(required=False, label="End Customer PO No.")
+    bill_to_address_id = forms.CharField(required=False, label="Bill to Address ID")
+    order_status = forms.CharField(required=False, label="Order Status")
 
     def cleaned_filters(self):
         """Return non-empty search filters."""

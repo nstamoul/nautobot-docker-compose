@@ -22,6 +22,18 @@ from .queries import (
 )
 
 SEARCH_KEY_MAP = {
+    "sales_order_number": "SALES_ORDER_ID",
+    "order_name": "ORDER_NAME",
+    "web_order_id": "WEB_ORDER_ID",
+    "subscription_id": "SUBSCRIPTION_ID",
+    "purchase_order": "PURCHASE_ORDER_ID",
+    "deal_id": "DEAL_ID",
+    "end_customer_name": "END_CUSTOMER_NAME",
+    "end_customer_number": "END_CUSTOMER_NUMBER",
+    "end_customer_po_number": "END_CUSTOMER_PURCHASE_ORDER_NUMBER",
+    "bill_to_address_id": "BILL_TO_ID",
+    "order_status": "ORDER_STATUS",
+    # Backward-compatible aliases used by existing URLs, model fields, and sync paths.
     "order_number": "SALES_ORDER_ID",
     "customer_po_number": "PURCHASE_ORDER_ID",
     "account_name": "END_CUSTOMER_NAME",

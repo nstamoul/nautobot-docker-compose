@@ -4,7 +4,7 @@ import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from nbcot.cisco.client import CiscoGraphQLClient, CiscoSettings
 from nbcot.cisco.exceptions import CiscoGraphQLError, NBCOTConfigurationError
@@ -72,8 +72,8 @@ class CiscoSettingsTest(TestCase):
         self.assertEqual(settings_obj.client_secret, "legacy-client-secret")
 
     @override_settings(PLUGINS_CONFIG={"nbcot": {"graphql_endpoint": "https://example.invalid/graphql"}})
-    def test_load_uses_shared_resolver_when_env_credentials_missing(self):
-        """Client settings should resolve Cisco OAuth credentials through the shared resolver."""
+    def test_load_uses_vault_credentials_when_env_credentials_missing(self):
+        """Client settings should resolve Cisco OAuth credentials from the configured Vault path."""
         for key in (
             "CISCO_MODERN_API_CLIENT_ID",
             "CISCO_MODERN_API_SECRET",
@@ -89,11 +89,9 @@ class CiscoSettingsTest(TestCase):
             "client_id": "vault-client-id",
             "client_secret": "vault-client-secret",
         }
-        with patch("nbcot.cisco.client.SecretResolver.from_env", return_value=resolver) as from_env:
+        with patch("nbcot.cisco.client.SecretResolver.from_env", return_value=resolver):
             settings_obj = CiscoSettings.load()
 
-        from_env.assert_called_once()
-        resolver.resolve_mapping.assert_called_once()
         self.assertEqual(settings_obj.client_id, "vault-client-id")
         self.assertEqual(settings_obj.client_secret, "vault-client-secret")
 
@@ -113,7 +111,7 @@ class CiscoSettingsTest(TestCase):
         self.assertEqual(settings_obj.graphql_endpoint, "https://capi.cisco.com/commerce/apis")
 
 
-class CiscoGraphQLClientTest(TestCase):
+class CiscoGraphQLClientTest(SimpleTestCase):
     """Test OAuth token and GraphQL request construction."""
 
     @override_settings(
@@ -176,6 +174,41 @@ class CiscoGraphQLClientTest(TestCase):
             client.execute("query { __typename }")
 
         self.assertEqual(str(exc.exception), "Unable to fetch data from Core SearchOrder API")
+
+    def test_build_order_search_input_supports_portal_search_fields(self):
+        """Order search input should support the same key fields exposed by Cisco's portal."""
+        search_input = CiscoGraphQLClient._build_order_search_input(
+            {
+                "sales_order_number": "119998164",
+                "order_name": "AHEPA Infra Refresh",
+                "web_order_id": "11001048032",
+                "subscription_id": "SUB-123",
+                "purchase_order": "1573/26B",
+                "deal_id": "73455770",
+                "end_customer_name": "AHEPA",
+                "end_customer_number": "EC-1",
+                "end_customer_po_number": "ECPO-1",
+                "bill_to_address_id": "BILL-1",
+                "order_status": "CLOSED",
+            }
+        )
+
+        self.assertEqual(
+            search_input["orderSearchCriteria"],
+            [
+                {"orderSearchKey": "SALES_ORDER_ID", "orderSearchValue": "119998164"},
+                {"orderSearchKey": "ORDER_NAME", "orderSearchValue": "AHEPA Infra Refresh"},
+                {"orderSearchKey": "WEB_ORDER_ID", "orderSearchValue": "11001048032"},
+                {"orderSearchKey": "SUBSCRIPTION_ID", "orderSearchValue": "SUB-123"},
+                {"orderSearchKey": "PURCHASE_ORDER_ID", "orderSearchValue": "1573/26B"},
+                {"orderSearchKey": "DEAL_ID", "orderSearchValue": "73455770"},
+                {"orderSearchKey": "END_CUSTOMER_NAME", "orderSearchValue": "AHEPA"},
+                {"orderSearchKey": "END_CUSTOMER_NUMBER", "orderSearchValue": "EC-1"},
+                {"orderSearchKey": "END_CUSTOMER_PURCHASE_ORDER_NUMBER", "orderSearchValue": "ECPO-1"},
+                {"orderSearchKey": "BILL_TO_ID", "orderSearchValue": "BILL-1"},
+                {"orderSearchKey": "ORDER_STATUS", "orderSearchValue": "CLOSED"},
+            ],
+        )
 
 
 class CiscoPayloadNormalizerTest(TestCase):

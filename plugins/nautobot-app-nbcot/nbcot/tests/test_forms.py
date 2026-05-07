@@ -1,11 +1,11 @@
 """Form tests for NBCOT."""
 
-from django.test import TestCase
+from django.test import SimpleTestCase
 
 from nbcot import forms
 
 
-class CiscoOrderFormTest(TestCase):
+class CiscoOrderFormTest(SimpleTestCase):
     """Test the model and search forms."""
 
     def test_order_form_accepts_required_fields(self):
@@ -31,17 +31,28 @@ class CiscoOrderFormTest(TestCase):
         form = forms.OrderSearchForm(
             data={
                 "environment": "prod",
-                "order_number": "SO-3002",
-                "customer_po_number": "",
-                "account_name": "Acme",
-                "account_number": "",
-                "status": "Submitted",
+                "sales_order_number": "SO-3002",
+                "order_name": "",
+                "web_order_id": "11001048032",
+                "subscription_id": "",
+                "purchase_order": "",
+                "deal_id": "",
+                "end_customer_name": "Acme",
+                "end_customer_number": "",
+                "end_customer_po_number": "",
+                "bill_to_address_id": "",
+                "order_status": "Submitted",
             }
         )
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(
             form.cleaned_filters(),
-            {"order_number": "SO-3002", "account_name": "Acme", "status": "Submitted"},
+            {
+                "sales_order_number": "SO-3002",
+                "web_order_id": "11001048032",
+                "end_customer_name": "Acme",
+                "order_status": "Submitted",
+            },
         )
         self.assertEqual(form.selected_environment(), "prod")
 
