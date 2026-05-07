@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load helpers %}
+
+{% block title %}NBCOT Order Search{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <strong>Search Cisco Orders</strong>
+            </div>
+            <div class="panel-body">
+                <form method="get">
+                    <div class="form-group">
+                        {{ form.environment.label_tag }}
+                        {{ form.environment }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.sales_order_number.label_tag }}
+                        {{ form.sales_order_number }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.order_name.label_tag }}
+                        {{ form.order_name }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.web_order_id.label_tag }}
+                        {{ form.web_order_id }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.subscription_id.label_tag }}
+                        {{ form.subscription_id }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.purchase_order.label_tag }}
+                        {{ form.purchase_order }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.deal_id.label_tag }}
+                        {{ form.deal_id }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.end_customer_name.label_tag }}
+                        {{ form.end_customer_name }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.end_customer_number.label_tag }}
+                        {{ form.end_customer_number }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.end_customer_po_number.label_tag }}
+                        {{ form.end_customer_po_number }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.bill_to_address_id.label_tag }}
+                        {{ form.bill_to_address_id }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.order_status.label_tag }}
+                        {{ form.order_status }}
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+                {% if error_message %}
+                    <div class="alert alert-danger" style="margin-top: 16px;">
+                        {{ error_message }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <strong>Recently Tracked</strong>
+            </div>
+            <div class="panel-body">
+                {% if tracked_orders %}
+                    <ul class="list-unstyled">
+                        {% for order in tracked_orders %}
+                            <li>
+                                <a href="{{ order.get_absolute_url }}">{{ order.order_number }}</a>
+                                <small class="text-muted">{{ order.environment|upper }}</small>
+                                <small class="text-muted">{{ order.status|default:"unknown" }}</small>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted">No tracked orders yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <strong>Search Results</strong>
+            </div>
+            <div class="panel-body">
+                {% if results %}
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Environment</th>
+                                <th>Order Number</th>
+                                <th>Customer PO</th>
+                                <th>Account</th>
+                                <th>Status</th>
+                                <th>Promised</th>
+                                <th>Estimated</th>
+                                <th>Exceptions</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in results %}
+                                <tr>
+                                    <td><span class="label label-info">{{ selected_environment|upper }}</span></td>
+                                    <td>{{ result.order_number }}</td>
+                                    <td>{{ result.customer_po_number|default:"-" }}</td>
+                                    <td>{{ result.account_name|default:"-" }}</td>
+                                    <td>{{ result.status|default:"-" }}</td>
+                                    <td>{{ result.promised_delivery_date|default:"-" }}</td>
+                                    <td>{{ result.estimated_delivery_date|default:"-" }}</td>
+                                    <td>{{ result.open_exception_count }}</td>
+                                    <td class="text-right">
+                                        <form method="post" action="{% url 'plugins:nbcot:order_track' %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="environment" value="{{ selected_environment }}">
+                                            <input type="hidden" name="order_number" value="{{ result.order_number }}">
+                                            <button type="submit" class="btn btn-sm btn-success">Track</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% elif request.GET %}
+                    <p class="text-muted">No orders matched the current search.</p>
+                {% else %}
+                    <p class="text-muted">Search by exact Sales Order No., Web Order ID, PO, deal, customer, or status.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

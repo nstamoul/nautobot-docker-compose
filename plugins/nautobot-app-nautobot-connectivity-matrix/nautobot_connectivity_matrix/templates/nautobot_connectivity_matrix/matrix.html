@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load buttons %}
+{% load helpers %}
+
+{% block title %}Connectivity Workbench: {{ object.name }}{% endblock %}
+
+{% block extra_styles %}
+<link href="{% static 'nautobot_connectivity_matrix/vendor/tabulator/tabulator_bootstrap5.min.css' %}?v={{ static_cache_buster }}" rel="stylesheet">
+<style>
+    #matrix-grid {
+        margin-top: 20px;
+        border: 1px solid #dee2e6;
+    }
+    .status-draft { color: #6c757d; }
+    .status-validated { color: #198754; }
+    .status-approved { color: #0d6efd; }
+    .status-executed { color: #0dcaf0; }
+    .status-conflict { color: #dc3545; }
+    .status-failed { color: #dc3545; font-weight: bold; }
+    .action-buttons {
+        margin-bottom: 15px;
+    }
+    .action-buttons .btn {
+        margin-right: 10px;
+    }
+    .batch-info {
+        margin-bottom: 20px;
+    }
+    .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255,255,255,0.7);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+    }
+    .loading-overlay.active {
+        display: flex;
+    }
+    .matrix-workbench-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+    .matrix-workbench-toolbar .form-control-color {
+        height: 34px;
+        width: 44px;
+        padding: 2px;
+    }
+    .device-builder-pane {
+        margin-top: 16px;
+    }
+    .device-builder-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+    }
+    .device-builder-item {
+        border-left: 3px solid #0d6efd;
+        padding-left: 12px;
+    }
+    .device-builder-label {
+        color: #6c757d;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+    .device-builder-value {
+        font-weight: 600;
+    }
+    .materialize-result {
+        margin-top: 12px;
+        white-space: pre-wrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="loading-overlay" id="loading-overlay">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <h1>Connectivity Workbench: {{ object.name }}</h1>
+
+	        <div class="batch-info">
+	            <span class="badge bg-secondary">{{ object.status }}</span>
+	            {% if object.tenant %}
+	                <span class="badge bg-info">Tenant: {{ object.tenant }}</span>
+	            {% endif %}
+	            {% if object.location %}
+	                <span class="badge bg-info">Location: {{ object.location }}</span>
+	            {% endif %}
+	            <span class="badge bg-primary">{{ object.connection_count }} connections</span>
+	        </div>
+
+	        <div class="card mb-2">
+	            <div class="card-body py-2">
+	                <div class="row g-2 align-items-end">
+	                    <div class="col-md-4">
+	                        <label class="form-label mb-1" for="device-status-filter">Device statuses (include)</label>
+	                        <select class="form-select" id="device-status-filter" multiple></select>
+	                    </div>
+	                    <div class="col-md-4">
+	                        <label class="form-label mb-1" for="device-role-exclude">Exclude device roles</label>
+	                        <select class="form-select" id="device-role-exclude" multiple></select>
+	                    </div>
+	                    <div class="col-md-4">
+	                        <button type="button" class="btn btn-outline-primary" id="btn-apply-device-filters">Apply filters</button>
+	                        <button type="button" class="btn btn-outline-secondary" id="btn-reset-device-filters">Reset</button>
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+
+        <ul class="nav nav-tabs mb-2" id="workbench-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="matrix-tab" data-bs-toggle="tab" data-bs-target="#matrix-pane" type="button" role="tab">
+                    Connectivity Matrix
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="devices-tab" data-bs-toggle="tab" data-bs-target="#devices-pane" type="button" role="tab">
+                    Device / Stack Builder
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+        <div class="tab-pane fade show active" id="matrix-pane" role="tabpanel" aria-labelledby="matrix-tab">
+
+	        <div class="action-buttons matrix-workbench-toolbar">
+	            <button type="button" class="btn btn-success" id="btn-add-row">
+	                <i class="mdi mdi-plus"></i> Add Row
+	            </button>
+            <button type="button" class="btn btn-secondary" id="btn-swap-selected">
+                <i class="mdi mdi-swap-horizontal"></i> Swap A/B
+            </button>
+            <input type="color" class="form-control form-control-color" id="row-color-picker" value="#8fd14f" title="Row color">
+            <button type="button" class="btn btn-secondary" id="btn-color-selected">
+                <i class="mdi mdi-format-color-fill"></i> Color
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btn-clear-color">
+                <i class="mdi mdi-format-color-fill"></i> Clear Color
+            </button>
+            <button type="button" class="btn btn-warning" id="btn-validate">
+                <i class="mdi mdi-check-all"></i> Validate
+            </button>
+            <button type="button" class="btn btn-info" id="btn-approve">
+                <i class="mdi mdi-thumb-up"></i> Approve
+            </button>
+            <button type="button" class="btn btn-primary" id="btn-execute">
+                <i class="mdi mdi-cable-data"></i> Create Cables
+            </button>
+	            <button type="button" class="btn btn-danger" id="btn-delete-selected">
+	                <i class="mdi mdi-delete"></i> Delete Selected
+	            </button>
+	            <button type="button" class="btn btn-outline-secondary" id="btn-fill-selected">
+	                <i class="mdi mdi-format-vertical-align-bottom"></i> Fill Selected
+	            </button>
+	            <button type="button" class="btn btn-outline-secondary" id="btn-clear-selected">
+	                <i class="mdi mdi-close-circle-outline"></i> Clear Selected
+	            </button>
+	            <a class="btn btn-secondary" href="/api/plugins/nautobot-connectivity-matrix/batches/{{ object.pk }}/export-xlsx/">
+	                <i class="mdi mdi-file-excel"></i> Export XLSX
+	            </a>
+            <button type="button" class="btn btn-secondary" id="btn-import-xlsx">
+                <i class="mdi mdi-file-upload"></i> Import XLSX
+            </button>
+            <a class="btn btn-secondary" href="/api/plugins/nautobot-connectivity-matrix/batches/{{ object.pk }}/export-drawio/">
+                <i class="mdi mdi-vector-link"></i> Export draw.io
+            </a>
+        </div>
+        <input type="file" id="import-xlsx-file" accept=".xlsx" style="display:none" />
+
+        <div id="matrix-grid"></div>
+        </div>
+
+        <div class="tab-pane fade device-builder-pane" id="devices-pane" role="tabpanel" aria-labelledby="devices-tab">
+            <div class="matrix-workbench-toolbar mb-3">
+                <button type="button" class="btn btn-warning" id="btn-materialize">
+                    <i class="mdi mdi-database-plus"></i> Materialize Missing Devices
+                </button>
+                <a class="btn btn-outline-primary" href="{% url 'plugins:nautobot_connectivity_matrix:connectionplanbatch_edit' pk=object.pk %}">
+                    <i class="mdi mdi-pencil"></i> Edit Defaults
+                </a>
+            </div>
+            <div class="device-builder-grid">
+                <div class="device-builder-item">
+                    <div class="device-builder-label">Tenant</div>
+                    <div class="device-builder-value">{{ object.tenant|default:"-" }}</div>
+                </div>
+                <div class="device-builder-item">
+                    <div class="device-builder-label">Location</div>
+                    <div class="device-builder-value">{{ object.location|default:"-" }}</div>
+                </div>
+                <div class="device-builder-item">
+                    <div class="device-builder-label">Default Device Type</div>
+                    <div class="device-builder-value">{{ object.default_device_type|default:"-" }}</div>
+                </div>
+                <div class="device-builder-item">
+                    <div class="device-builder-label">Default Role</div>
+                    <div class="device-builder-value">{{ object.default_device_role|default:"-" }}</div>
+                </div>
+                <div class="device-builder-item">
+                    <div class="device-builder-label">Default Platform</div>
+                    <div class="device-builder-value">{{ object.default_platform|default:"-" }}</div>
+                </div>
+                <div class="device-builder-item">
+                    <div class="device-builder-label">Default Status</div>
+                    <div class="device-builder-value">{{ object.default_device_status|default:"-" }}</div>
+                </div>
+            </div>
+            <div class="alert alert-secondary materialize-result" id="materialize-result">
+                Unresolved typed devices stay planned until Materialize Missing Devices is clicked.
+            </div>
+        </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script src="{% static 'nautobot_connectivity_matrix/vendor/tabulator/tabulator.min.js' %}?v={{ static_cache_buster }}"></script>
+{{ matrix_config|json_script:"connectivity-matrix-config" }}
+<script src="{% static 'nautobot_connectivity_matrix/matrix.js' %}?v={{ static_cache_buster }}"></script>
+{% endblock %}

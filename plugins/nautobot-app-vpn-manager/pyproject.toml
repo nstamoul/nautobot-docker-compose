@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "nautobot-vpn-manager"
+version = "0.1.0"
+description = "SHMS VPN control dashboard for Nautobot"
+authors = ["Nikos Stamoulis"]
+packages = [{ include = "nautobot_vpn_manager" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+nautobot = "3.1.0"
+requests = ">=2.31,<3.0"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"

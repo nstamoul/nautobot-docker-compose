@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Device / Stack Builder{% endblock %}
+
+{% block extra_styles %}
+<link href="{% static 'nautobot_connectivity_matrix/vendor/tabulator/tabulator_bootstrap5.min.css' %}?v={{ static_cache_buster }}" rel="stylesheet">
+<style>
+  .stack-builder-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .stack-builder-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  #stack-plan-grid {
+    border: 1px solid #cfd7e3;
+  }
+  #stack-plan-grid .tabulator-header {
+    background: #4f81bd;
+    color: #fff;
+    font-weight: 700;
+  }
+  #stack-plan-grid .tabulator-col {
+    background: #4f81bd;
+    color: #fff;
+  }
+  #stack-plan-grid .tabulator-row.stack-band-a {
+    background: #eaf2df;
+  }
+  #stack-plan-grid .tabulator-row.stack-band-b {
+    background: #ddebf7;
+  }
+  #stack-plan-grid .tabulator-cell.inherited-cell {
+    color: #6c757d;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.24) 0,
+      rgba(255, 255, 255, 0.24) 6px,
+      rgba(255, 255, 255, 0.48) 6px,
+      rgba(255, 255, 255, 0.48) 12px
+    );
+  }
+  .stack-result {
+    display: none;
+    margin-top: 12px;
+    white-space: pre-wrap;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    <h1>Device / Stack Builder</h1>
+
+    <div class="stack-builder-bar">
+      <div>
+        <label class="form-label" for="stack-default-tenant">Tenant</label>
+        <select class="form-select" id="stack-default-tenant"></select>
+      </div>
+      <div>
+        <label class="form-label" for="stack-default-location">Location</label>
+        <select class="form-select" id="stack-default-location"></select>
+      </div>
+      <div>
+        <label class="form-label" for="stack-default-status">Status</label>
+        <select class="form-select" id="stack-default-status"></select>
+      </div>
+    </div>
+
+    <div class="stack-builder-actions">
+      <button type="button" class="btn btn-primary" id="btn-stack-add">Add Stack</button>
+      <button type="button" class="btn btn-outline-primary" id="btn-stack-add-member">Add Member to Selected Stack</button>
+      <button type="button" class="btn btn-outline-danger" id="btn-stack-delete">Delete Selected</button>
+      <button type="button" class="btn btn-success" id="btn-stack-materialize">Materialize Devices</button>
+    </div>
+
+    <div id="stack-plan-grid"></div>
+    <div class="alert stack-result" id="stack-result"></div>
+  </div>
+</div>
+
+{{ stack_plan_config|json_script:"stack-plan-config" }}
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+<script src="{% static 'nautobot_connectivity_matrix/vendor/tabulator/tabulator.min.js' %}?v={{ static_cache_buster }}"></script>
+<script src="{% static 'nautobot_connectivity_matrix/stack_plan.js' %}?v={{ static_cache_buster }}"></script>
+{% endblock %}

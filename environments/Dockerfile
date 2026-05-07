@@ -1,21 +1,25 @@
 ARG NAUTOBOT_VERSION
 ARG PYTHON_VER
-FROM ghcr.io/nautobot/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER} as nautobot-base
+ARG NAUTOBOT_BASE_IMAGE=ghcr.io/nautobot/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}
+ARG NAUTOBOT_DEV_IMAGE=ghcr.io/nautobot/nautobot-dev:${NAUTOBOT_VERSION}-py${PYTHON_VER}
+FROM ${NAUTOBOT_BASE_IMAGE} as nautobot-base
 
 USER 0
 
 RUN apt-get update && \
+    apt-get install -y --no-install-recommends iproute2 iputils-ping traceroute mtr-tiny libldap2-dev libsasl2-dev libssl-dev && \
     apt-get upgrade -y && \
     apt-get autoremove -y && \
     apt-get clean all && \
     rm -rf /var/lib/apt/lists/* && \
     pip --no-cache-dir install --upgrade pip wheel
 
-FROM ghcr.io/nautobot/nautobot-dev:${NAUTOBOT_VERSION}-py${PYTHON_VER} as builder
+FROM ${NAUTOBOT_DEV_IMAGE} as builder
 
 CMD ["nautobot-server", "runserver", "0.0.0.0:8080", "--insecure"]
 
 RUN apt-get update && \
+    apt-get install -y --no-install-recommends libldap2-dev libsasl2-dev libssl-dev && \
     apt-get upgrade -y && \
     apt-get autoremove -y && \
     apt-get clean all && \
@@ -27,9 +31,9 @@ COPY ../plugins /source/plugins
 
 # Install the nautobot project to include Nautobot
 RUN cd /source && \
-    poetry install --no-interaction --no-ansi && \
-    # Try to install the export plugin for Poetry v2, if it fails it's probably v1 so we can ignore it
     poetry self add poetry-plugin-export || true && \
+    poetry lock --no-interaction && \
+    poetry install --no-interaction --no-ansi && \
     mkdir /tmp/dist && \
     poetry export --without-hashes -o /tmp/dist/requirements.txt
 
@@ -43,6 +47,8 @@ RUN cd /source && \
 #     done
 
 COPY ../jobs /opt/nautobot/jobs
+COPY ../patches_runtime /opt/nautobot/patches_runtime
+COPY ../patches/jinja_filters.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_device_onboarding/jinja_filters.py
 # COPY ../metrics /opt/nautobot/metrics
 COPY ../config/nautobot_config.py /opt/nautobot/nautobot_config.py
 
@@ -62,6 +68,12 @@ COPY --from=builder /opt/nautobot /opt/nautobot
 COPY --from=builder /usr/local/lib/python${PYTHON_VER}/site-packages /usr/local/lib/python${PYTHON_VER}/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 # COPY ../packages /source/packages
+
+# Apply SHMS overrides for the published nautobot-ui-plugin package.
+COPY ../patches/nautobot_ui_plugin/__init__.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/__init__.py
+COPY ../patches/nautobot_ui_plugin/template_content.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/template_content.py
+COPY ../plugins/nautobot_ui_plugin/views.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/views.py
+COPY ../plugins/nautobot_ui_plugin/templates /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/templates
 
 # Verify that pyuwsgi was installed correctly, i.e. with SSL support
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
