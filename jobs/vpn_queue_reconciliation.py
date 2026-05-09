@@ -11,6 +11,9 @@ from nautobot.tenancy.models import Tenant
 VPN_QUEUE_PREFIX = "vpn-"
 VPN_LEGACY_QUEUE = "vpn"
 VPN_GENERIC_QUEUE = "vpn-generic"
+REMOTE_WORKER_QUEUE_PREFIX = "remote-worker-"
+REMOTE_WORKER_GENERIC_QUEUE = "remote-worker-generic"
+CENTRAL_WRITER_QUEUE = "central-writer"
 name = "VPN management"
 
 # These names should remain aligned with the actual user-facing job names in SHMS.
@@ -28,6 +31,7 @@ VPN_CONTROL_JOB_NAMES = [
 VPN_BOUND_JOB_NAMES = [
     # Core onboarding / discovery / sync flows.
     "Customer Onboarding Workflow",
+    "Collect Stage 4 Network Data Raw Artifact",
     "Sync Devices From Network (custom)",
     "Sync Network Data From Network, extended to include Tenant",
     "Sync Devices From Network - Cisco ASA",
@@ -68,6 +72,10 @@ VPN_BOUND_JOB_NAMES = [
     "VMWare vSphere ⟹ Nautobot",
 ]
 
+CENTRAL_WRITER_JOB_NAMES = [
+    "Apply Stage 4 Network Data Artifact",
+]
+
 
 def _tenant_queue_slug(value: str) -> str:
     """Create a deterministic, human-readable queue slug for a tenant name."""
@@ -85,6 +93,28 @@ def tenant_queue_name(tenant: Tenant) -> str:
     return f"{VPN_QUEUE_PREFIX}tenant-{str(tenant.id)[:8]}"
 
 
+def remote_worker_queue_name(tenant: Tenant) -> str:
+    """Return the canonical remote collector queue name for a tenant."""
+    slug = _tenant_queue_slug(getattr(tenant, "slug", "") or tenant.name)
+    if slug:
+        return f"{REMOTE_WORKER_QUEUE_PREFIX}{slug}"
+    return f"{REMOTE_WORKER_QUEUE_PREFIX}tenant-{str(tenant.id)[:8]}"
+
+
+def _is_shms_managed_queue_name(queue_name: str) -> bool:
+    return (
+        queue_name
+        in {
+            VPN_LEGACY_QUEUE,
+            VPN_GENERIC_QUEUE,
+            REMOTE_WORKER_GENERIC_QUEUE,
+            CENTRAL_WRITER_QUEUE,
+        }
+        or queue_name.startswith(VPN_QUEUE_PREFIX)
+        or queue_name.startswith(REMOTE_WORKER_QUEUE_PREFIX)
+    )
+
+
 class ReconcileVpnTenantQueues(Job):
     """Create tenant-scoped VPN queues and assign VPN-capable jobs to them."""
 
@@ -96,6 +126,14 @@ class ReconcileVpnTenantQueues(Job):
     include_generic_queue = BooleanVar(
         default=True,
         description="Ensure the shared fallback queue vpn-generic exists.",
+    )
+    include_remote_worker_queues = BooleanVar(
+        default=True,
+        description="Ensure tenant remote collector queues remote-worker-<tenant> exist.",
+    )
+    include_central_writer_queue = BooleanVar(
+        default=True,
+        description="Ensure the shared central-writer queue exists for local ORM apply jobs.",
     )
     cleanup_unselected_tenant_queues = BooleanVar(
         default=False,
@@ -111,7 +149,9 @@ class ReconcileVpnTenantQueues(Job):
 
     class Meta:
         name = "Reconcile VPN Tenant Queues"
-        description = "Create tenant-based VPN queues and assign VPN-capable jobs to them."
+        description = (
+            "Create tenant-based VPN queues and assign VPN-capable jobs to them."
+        )
         has_sensitive_variables = False
         task_queues = ["default"]
         soft_time_limit = 300
@@ -119,15 +159,21 @@ class ReconcileVpnTenantQueues(Job):
 
     def _get_target_tenants(self, tenants):
         selected = list(tenants) if tenants else list(Tenant.objects.order_by("name"))
-        self.logger.info("Selected %s tenant(s) for queue reconciliation.", len(selected))
+        self.logger.info(
+            "Selected %s tenant(s) for queue reconciliation.", len(selected)
+        )
         return selected
 
     def _get_vpn_jobs(self):
-        configured_jobs = list(JobModel.objects.filter(name__in=VPN_BOUND_JOB_NAMES).order_by("name"))
+        configured_jobs = list(
+            JobModel.objects.filter(name__in=VPN_BOUND_JOB_NAMES).order_by("name")
+        )
         found_names = {job.name for job in configured_jobs}
         missing = [name for name in VPN_BOUND_JOB_NAMES if name not in found_names]
         legacy_jobs = list(
-            JobModel.objects.filter(job_queue_assignments__job_queue__name=VPN_LEGACY_QUEUE)
+            JobModel.objects.filter(
+                job_queue_assignments__job_queue__name=VPN_LEGACY_QUEUE
+            )
             .exclude(name__in=VPN_CONTROL_JOB_NAMES)
             .distinct()
             .order_by("name")
@@ -160,20 +206,52 @@ class ReconcileVpnTenantQueues(Job):
         )
         return jobs
 
+    def _get_central_writer_jobs(self):
+        jobs = list(
+            JobModel.objects.filter(name__in=CENTRAL_WRITER_JOB_NAMES).order_by("name")
+        )
+        found_names = {job.name for job in jobs}
+        for name in CENTRAL_WRITER_JOB_NAMES:
+            if name not in found_names:
+                self.logger.warning(
+                    "Central-writer job '%s' is not installed in SHMS.", name
+                )
+        return jobs
+
     def _current_managed_vpn_jobs(self):
         """Return jobs already attached to any SHMS-managed VPN queue."""
-        managed_queue_names = [VPN_LEGACY_QUEUE, VPN_GENERIC_QUEUE]
-        managed_queue_names.extend(JobQueue.objects.filter(name__startswith=VPN_QUEUE_PREFIX).values_list("name", flat=True))
+        managed_queue_names = [
+            VPN_LEGACY_QUEUE,
+            VPN_GENERIC_QUEUE,
+            REMOTE_WORKER_GENERIC_QUEUE,
+        ]
+        managed_queue_names.extend(
+            JobQueue.objects.filter(name__startswith=VPN_QUEUE_PREFIX).values_list(
+                "name", flat=True
+            )
+        )
+        managed_queue_names.extend(
+            JobQueue.objects.filter(
+                name__startswith=REMOTE_WORKER_QUEUE_PREFIX
+            ).values_list("name", flat=True)
+        )
         return list(
-            JobModel.objects.filter(job_queue_assignments__job_queue__name__in=managed_queue_names)
+            JobModel.objects.filter(
+                job_queue_assignments__job_queue__name__in=managed_queue_names
+            )
             .exclude(name__in=VPN_CONTROL_JOB_NAMES)
             .distinct()
             .order_by("name")
         )
 
-    def _ensure_queue(self, *, name, tenant, dry_run):
+    def _ensure_queue(self, *, name, tenant, dry_run, description=None):
         queue = JobQueue.objects.filter(name=name).first()
         created = queue is None
+        desired_description = description or (
+            f"Tenant-scoped VPN queue for {tenant.name}"
+            if tenant
+            else "Generic VPN queue"
+        )
 
         if queue is None:
             self.logger.info(
@@ -186,15 +264,12 @@ class ReconcileVpnTenantQueues(Job):
                 return None, True
             queue = JobQueue.objects.create(
                 name=name,
-                description=f"Tenant-scoped VPN queue for {tenant.name}" if tenant else "Generic VPN queue",
+                description=desired_description,
                 queue_type="celery",
                 tenant=tenant,
             )
             return queue, True
 
-        desired_description = (
-            f"Tenant-scoped VPN queue for {tenant.name}" if tenant else "Generic VPN queue"
-        )
         changes = []
         if queue.queue_type != "celery":
             changes.append(("queue_type", queue.queue_type, "celery"))
@@ -220,7 +295,21 @@ class ReconcileVpnTenantQueues(Job):
 
     def _ensure_assignments(self, *, queue, queue_name, jobs, dry_run):
         for job in jobs:
-            exists = JobQueueAssignment.objects.filter(job=job, job_queue=queue).exists() if queue else False
+            if not job.enabled:
+                self.logger.info(
+                    "%s job=%s so it can run on managed SHMS queues.",
+                    "Would enable" if dry_run else "Enabling",
+                    job.name,
+                )
+                if not dry_run:
+                    job.enabled = True
+                    job.save()
+
+            exists = (
+                JobQueueAssignment.objects.filter(job=job, job_queue=queue).exists()
+                if queue
+                else False
+            )
             if exists:
                 continue
             self.logger.info(
@@ -234,19 +323,26 @@ class ReconcileVpnTenantQueues(Job):
 
     def _persist_job_queue_override(self, *, jobs, managed_queues, dry_run):
         managed_queue_ids = {queue.id for queue in managed_queues if queue is not None}
-        managed_queue_names = sorted(queue.name for queue in managed_queues if queue is not None)
+        managed_queue_names = sorted(
+            queue.name for queue in managed_queues if queue is not None
+        )
 
         for job in jobs:
             current_queues = list(job.job_queues.order_by("name"))
             preserved_queues = [
-                queue for queue in current_queues if queue.id not in managed_queue_ids and not queue.name.startswith(VPN_QUEUE_PREFIX)
+                queue
+                for queue in current_queues
+                if queue.id not in managed_queue_ids
+                and not _is_shms_managed_queue_name(queue.name)
             ]
             desired_queues = {queue.id: queue for queue in preserved_queues}
             for queue in managed_queues:
                 if queue is not None:
                     desired_queues[queue.id] = queue
 
-            desired_queue_list = sorted(desired_queues.values(), key=lambda queue: queue.name)
+            desired_queue_list = sorted(
+                desired_queues.values(), key=lambda queue: queue.name
+            )
             desired_queue_ids = {queue.id for queue in desired_queue_list}
             current_queue_ids = {queue.id for queue in current_queues}
 
@@ -270,8 +366,10 @@ class ReconcileVpnTenantQueues(Job):
             job.job_queues.set(desired_queue_list)
 
     def _cleanup_stale_queues(self, *, expected_names, dry_run):
-        stale_queues = JobQueue.objects.filter(name__startswith=VPN_QUEUE_PREFIX).exclude(name=VPN_GENERIC_QUEUE).exclude(
-            name__in=expected_names
+        stale_queues = (
+            JobQueue.objects.filter(name__startswith=VPN_QUEUE_PREFIX)
+            .exclude(name=VPN_GENERIC_QUEUE)
+            .exclude(name__in=expected_names)
         )
         for queue in stale_queues.order_by("name"):
             self.logger.warning(
@@ -286,6 +384,8 @@ class ReconcileVpnTenantQueues(Job):
         self,
         tenants=None,
         include_generic_queue=True,
+        include_remote_worker_queues=True,
+        include_central_writer_queue=True,
         cleanup_unselected_tenant_queues=False,
         dry_run=True,
     ):
@@ -294,21 +394,54 @@ class ReconcileVpnTenantQueues(Job):
         for job in self._current_managed_vpn_jobs():
             jobs_by_name[job.name] = job
         jobs = [jobs_by_name[name] for name in sorted(jobs_by_name)]
+        central_writer_jobs = self._get_central_writer_jobs()
         expected_tenant_queue_names = []
+        expected_remote_queue_names = []
         managed_queues = []
+        central_writer_queues = []
 
         for tenant in target_tenants:
             queue_name = tenant_queue_name(tenant)
             expected_tenant_queue_names.append(queue_name)
-            queue, created = self._ensure_queue(name=queue_name, tenant=tenant, dry_run=dry_run)
+            queue, created = self._ensure_queue(
+                name=queue_name, tenant=tenant, dry_run=dry_run
+            )
             if created:
                 self.logger.info("Tenant %s maps to queue %s.", tenant.name, queue_name)
             if queue is not None:
                 managed_queues.append(queue)
-            self._ensure_assignments(queue=queue, queue_name=queue_name, jobs=jobs, dry_run=dry_run)
+            self._ensure_assignments(
+                queue=queue, queue_name=queue_name, jobs=jobs, dry_run=dry_run
+            )
+
+            if include_remote_worker_queues:
+                remote_queue_name = remote_worker_queue_name(tenant)
+                expected_remote_queue_names.append(remote_queue_name)
+                remote_queue, remote_created = self._ensure_queue(
+                    name=remote_queue_name,
+                    tenant=tenant,
+                    dry_run=dry_run,
+                    description=f"Tenant-scoped remote worker collector queue for {tenant.name}",
+                )
+                if remote_created:
+                    self.logger.info(
+                        "Tenant %s maps to remote worker queue %s.",
+                        tenant.name,
+                        remote_queue_name,
+                    )
+                if remote_queue is not None:
+                    managed_queues.append(remote_queue)
+                self._ensure_assignments(
+                    queue=remote_queue,
+                    queue_name=remote_queue_name,
+                    jobs=jobs,
+                    dry_run=dry_run,
+                )
 
         if include_generic_queue:
-            generic_queue, _ = self._ensure_queue(name=VPN_GENERIC_QUEUE, tenant=None, dry_run=dry_run)
+            generic_queue, _ = self._ensure_queue(
+                name=VPN_GENERIC_QUEUE, tenant=None, dry_run=dry_run
+            )
             if generic_queue is not None:
                 managed_queues.append(generic_queue)
             self._ensure_assignments(
@@ -318,19 +451,63 @@ class ReconcileVpnTenantQueues(Job):
                 dry_run=dry_run,
             )
 
+        if include_remote_worker_queues and include_generic_queue:
+            remote_generic_queue, _ = self._ensure_queue(
+                name=REMOTE_WORKER_GENERIC_QUEUE,
+                tenant=None,
+                dry_run=dry_run,
+                description="Generic remote worker collector queue",
+            )
+            if remote_generic_queue is not None:
+                managed_queues.append(remote_generic_queue)
+            self._ensure_assignments(
+                queue=remote_generic_queue,
+                queue_name=REMOTE_WORKER_GENERIC_QUEUE,
+                jobs=jobs,
+                dry_run=dry_run,
+            )
+
+        if include_central_writer_queue:
+            central_queue, _ = self._ensure_queue(
+                name=CENTRAL_WRITER_QUEUE,
+                tenant=None,
+                dry_run=dry_run,
+                description="Shared central writer queue for local Nautobot ORM apply jobs",
+            )
+            if central_queue is not None:
+                central_writer_queues.append(central_queue)
+            self._ensure_assignments(
+                queue=central_queue,
+                queue_name=CENTRAL_WRITER_QUEUE,
+                jobs=central_writer_jobs,
+                dry_run=dry_run,
+            )
+
         legacy_queue = JobQueue.objects.filter(name=VPN_LEGACY_QUEUE).first()
         if legacy_queue is not None:
             managed_queues.append(legacy_queue)
 
-        self._persist_job_queue_override(jobs=jobs, managed_queues=managed_queues, dry_run=dry_run)
+        self._persist_job_queue_override(
+            jobs=jobs, managed_queues=managed_queues, dry_run=dry_run
+        )
+        if central_writer_jobs:
+            self._persist_job_queue_override(
+                jobs=central_writer_jobs,
+                managed_queues=central_writer_queues,
+                dry_run=dry_run,
+            )
 
         if cleanup_unselected_tenant_queues:
-            self._cleanup_stale_queues(expected_names=expected_tenant_queue_names, dry_run=dry_run)
+            self._cleanup_stale_queues(
+                expected_names=expected_tenant_queue_names, dry_run=dry_run
+            )
 
         result = {
             "tenant_count": len(target_tenants),
             "vpn_job_count": len(jobs),
             "tenant_queues": expected_tenant_queue_names,
+            "remote_worker_queues": expected_remote_queue_names,
+            "central_writer_queue": include_central_writer_queue,
             "generic_queue": include_generic_queue,
             "dry_run": dry_run,
         }
