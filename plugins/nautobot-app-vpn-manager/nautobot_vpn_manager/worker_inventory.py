@@ -5,13 +5,23 @@ from __future__ import annotations
 from datetime import datetime, time, timezone
 from fnmatch import fnmatchcase
 
+REMOTE_WORKER_QUEUE_PREFIX = "remote-worker-"
+LEGACY_VPN_QUEUE_PREFIX = "vpn-"
+REMOTE_GENERIC_QUEUE = f"{REMOTE_WORKER_QUEUE_PREFIX}generic"
+LEGACY_GENERIC_QUEUE = f"{LEGACY_VPN_QUEUE_PREFIX}generic"
+
 
 def vpn_queue_set(queue_names: list[str], *, include_generic: bool) -> set[str]:
-    """Return VPN queues from a live/current queue list."""
+    """Return remote-worker queues plus legacy vpn-* queues from a live/current queue list."""
 
-    queues = {queue for queue in queue_names if queue.startswith("vpn-")}
+    queues = {
+        queue
+        for queue in queue_names
+        if queue.startswith(REMOTE_WORKER_QUEUE_PREFIX) or queue.startswith(LEGACY_VPN_QUEUE_PREFIX)
+    }
     if not include_generic:
-        queues.discard("vpn-generic")
+        queues.discard(REMOTE_GENERIC_QUEUE)
+        queues.discard(LEGACY_GENERIC_QUEUE)
     return queues
 
 

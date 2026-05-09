@@ -235,7 +235,7 @@ def _tenant_queue_choices() -> list[dict[str, str]]:
         slug = _slot_slug(tenant.name)
         if not slug:
             continue
-        choices.append({"slug": slug, "name": tenant.name, "queue": f"vpn-{slug}"})
+        choices.append({"slug": slug, "name": tenant.name, "queue": f"remote-worker-{slug}"})
     return choices
 
 

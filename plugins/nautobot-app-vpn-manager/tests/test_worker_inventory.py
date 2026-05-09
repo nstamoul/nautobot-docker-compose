@@ -8,11 +8,21 @@ from nautobot_vpn_manager.worker_inventory import (
 
 
 def test_vpn_queue_set_can_cancel_generic_from_live_current_queues():
-    assert vpn_queue_set(["vpn-generic", "vpn-axepa", "celery"], include_generic=True) == {
-        "vpn-generic",
-        "vpn-axepa",
+    assert vpn_queue_set(
+        ["remote-worker-generic", "remote-worker-axepa", "vpn-legacy", "celery"],
+        include_generic=True,
+    ) == {
+        "remote-worker-generic",
+        "remote-worker-axepa",
+        "vpn-legacy",
     }
-    assert vpn_queue_set(["vpn-generic", "vpn-axepa"], include_generic=False) == {"vpn-axepa"}
+    assert vpn_queue_set(
+        ["remote-worker-generic", "remote-worker-axepa", "vpn-generic", "vpn-legacy"],
+        include_generic=False,
+    ) == {
+        "remote-worker-axepa",
+        "vpn-legacy",
+    }
 
 
 def test_annotate_worker_drift_marks_online_worker_in_sync_ignoring_generic_queue():
@@ -21,8 +31,8 @@ def test_annotate_worker_drift_marks_online_worker_in_sync_ignoring_generic_queu
             "worker_id": "RPiNo18",
             "is_online": True,
             "current_queues_source": "live Celery",
-            "current_queues": ["vpn-axepa", "vpn-generic"],
-            "desired_queues": ["vpn-axepa"],
+            "current_queues": ["remote-worker-axepa", "remote-worker-generic"],
+            "desired_queues": ["remote-worker-axepa"],
         }
     ]
 
@@ -40,8 +50,8 @@ def test_annotate_worker_drift_detects_online_worker_queue_mismatch():
             "worker_id": "RPiNo18",
             "is_online": True,
             "current_queues_source": "live Celery",
-            "current_queues": ["vpn-axepa"],
-            "desired_queues": ["vpn-dodoni"],
+            "current_queues": ["remote-worker-axepa"],
+            "desired_queues": ["remote-worker-dodoni"],
         }
     ]
 
@@ -49,9 +59,29 @@ def test_annotate_worker_drift_detects_online_worker_queue_mismatch():
 
     assert workers[0]["queue_drift_status"] == "drift"
     assert workers[0]["queue_drift"] is True
-    assert workers[0]["queue_drift_missing"] == ["vpn-dodoni"]
+    assert workers[0]["queue_drift_missing"] == ["remote-worker-dodoni"]
+    assert workers[0]["queue_drift_unexpected"] == ["remote-worker-axepa"]
+    assert workers[0]["queue_drift_summary"] == "missing remote-worker-dodoni; unexpected remote-worker-axepa"
+
+
+def test_annotate_worker_drift_detects_legacy_vpn_queue_as_unexpected_current_queue():
+    workers = [
+        {
+            "worker_id": "RPiNo18",
+            "is_online": True,
+            "current_queues_source": "live Celery",
+            "current_queues": ["vpn-axepa"],
+            "desired_queues": ["remote-worker-axepa"],
+        }
+    ]
+
+    annotate_worker_drift(workers)
+
+    assert workers[0]["queue_drift_status"] == "drift"
+    assert workers[0]["queue_drift"] is True
+    assert workers[0]["queue_drift_missing"] == ["remote-worker-axepa"]
     assert workers[0]["queue_drift_unexpected"] == ["vpn-axepa"]
-    assert workers[0]["queue_drift_summary"] == "missing vpn-dodoni; unexpected vpn-axepa"
+    assert workers[0]["queue_drift_summary"] == "missing remote-worker-axepa; unexpected vpn-axepa"
 
 
 def test_annotate_worker_drift_marks_offline_assignment_as_deferred_not_drift():
@@ -60,8 +90,8 @@ def test_annotate_worker_drift_marks_offline_assignment_as_deferred_not_drift():
             "worker_id": "RPiNo19",
             "is_online": False,
             "current_queues_source": "piconfig assignment",
-            "current_queues": ["vpn-dodoni"],
-            "desired_queues": ["vpn-dodoni"],
+            "current_queues": ["remote-worker-dodoni"],
+            "desired_queues": ["remote-worker-dodoni"],
         }
     ]
 
@@ -90,8 +120,8 @@ def test_celery_active_queues_by_node_retries_closed_broker_connection():
                 raise RuntimeError("Connection closed by server")
             return {
                 "worker1@RPiNo18": [
-                    {"name": "vpn-axepa"},
-                    {"name": "vpn-axepa"},
+                    {"name": "remote-worker-axepa"},
+                    {"name": "remote-worker-axepa"},
                     {"name": "celery"},
                 ]
             }
@@ -115,7 +145,7 @@ def test_celery_active_queues_by_node_retries_closed_broker_connection():
     queues, error = celery_active_queues_by_node(FakeCeleryApp(), timeout=2, attempts=2)
 
     assert error is None
-    assert queues == {"worker1@RPiNo18": ["celery", "vpn-axepa"]}
+    assert queues == {"worker1@RPiNo18": ["celery", "remote-worker-axepa"]}
 
 
 def test_filter_remote_workers_matches_name_queue_status_and_datetime_windows():
@@ -126,8 +156,8 @@ def test_filter_remote_workers_matches_name_queue_status_and_datetime_windows():
             "celery_node_name": "worker1@RPiNo18",
             "status": "online",
             "stale": False,
-            "current_queues": ["vpn-axepa", "vpn-generic"],
-            "desired_queues": ["vpn-axepa"],
+            "current_queues": ["remote-worker-axepa", "remote-worker-generic"],
+            "desired_queues": ["remote-worker-axepa"],
             "last_assignment": "2026-04-25T08:27:16+00:00",
             "last_heartbeat": "2026-04-25T08:27:31+00:00",
         },
@@ -137,7 +167,7 @@ def test_filter_remote_workers_matches_name_queue_status_and_datetime_windows():
             "status": "offline",
             "stale": True,
             "current_queues": [],
-            "desired_queues": ["vpn-dodoni"],
+            "desired_queues": ["remote-worker-dodoni"],
             "last_assignment": "2026-04-24T08:00:00Z",
             "last_heartbeat": "2026-04-24T08:00:00Z",
         },
@@ -147,7 +177,7 @@ def test_filter_remote_workers_matches_name_queue_status_and_datetime_windows():
         workers,
         {
             "name": "RPiNo1*",
-            "queue": "vpn-generic",
+            "queue": "remote-worker-generic",
             "status": "online",
             "assignment_from": "2026-04-25T08:00:00+00:00",
             "assignment_to": "",
@@ -166,26 +196,29 @@ def test_filter_remote_workers_accepts_multi_value_queue_and_status_filters():
             "worker_id": "RPiNo18",
             "status": "online",
             "stale": False,
-            "current_queues": ["vpn-axepa"],
-            "desired_queues": ["vpn-axepa"],
+            "current_queues": ["remote-worker-axepa"],
+            "desired_queues": ["remote-worker-axepa"],
         },
         {
             "worker_id": "RPiNo19",
             "status": "offline",
             "stale": True,
-            "current_queues": ["vpn-dodoni"],
-            "desired_queues": ["vpn-dodoni"],
+            "current_queues": ["remote-worker-dodoni"],
+            "desired_queues": ["remote-worker-dodoni"],
         },
         {
             "worker_id": "RPiNo20",
             "status": "disabled",
             "stale": False,
-            "current_queues": ["vpn-other"],
-            "desired_queues": ["vpn-other"],
+            "current_queues": ["remote-worker-other"],
+            "desired_queues": ["remote-worker-other"],
         },
     ]
 
-    result = filter_remote_workers(workers, {"queue": ["vpn-axepa", "vpn-dodoni"], "status": ["online", "stale"]})
+    result = filter_remote_workers(
+        workers,
+        {"queue": ["remote-worker-axepa", "remote-worker-dodoni"], "status": ["online", "stale"]},
+    )
 
     assert [worker["worker_id"] for worker in result] == ["RPiNo18", "RPiNo19"]
 

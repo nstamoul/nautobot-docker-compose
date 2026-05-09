@@ -39,8 +39,8 @@ def test_normalize_worker_payload_exposes_piconfig_assignment_as_dashboard_worke
     assert worker["is_online"] is True
     assert worker["registered_at"] == "2026-04-23T20:00:00Z"
     assert worker["assignment_status"] == "assigned"
-    assert worker["desired_queues"] == ["vpn-acme", "vpn-dodoni"]
-    assert worker["current_queues"] == ["vpn-acme", "vpn-dodoni"]
+    assert worker["desired_queues"] == ["remote-worker-acme", "remote-worker-dodoni"]
+    assert worker["current_queues"] == ["remote-worker-acme", "remote-worker-dodoni"]
     assert worker["tenant_slugs"] == ["acme", "dodoni"]
     assert worker["assignment_version"] == 7
     assert worker["last_assignment"] == "2026-04-24T09:00:00Z"
@@ -65,9 +65,14 @@ def test_normalize_worker_payload_marks_enabled_worker_offline_after_heartbeat_t
     assert worker["stale"] is True
 
 
-def test_assignment_input_accepts_tenant_slugs_and_vpn_queue_names():
-    assert tenant_slugs_from_assignment_input("vpn-acme, dodoni, vpn-acme") == ["acme", "dodoni"]
-    assert queue_names_for_tenant_slugs(["dodoni", "acme"]) == ["vpn-dodoni", "vpn-acme"]
+def test_assignment_input_accepts_tenant_slugs_remote_worker_queues_and_legacy_vpn_queue_names():
+    assert tenant_slugs_from_assignment_input(
+        "remote-worker-acme, dodoni, vpn-acme, remote-worker-acme"
+    ) == ["acme", "dodoni"]
+    assert queue_names_for_tenant_slugs(["dodoni", "vpn-acme"]) == [
+        "remote-worker-dodoni",
+        "remote-worker-acme",
+    ]
 
 
 def test_piconfig_client_uses_mtls_service_endpoint_for_assignment(monkeypatch):
@@ -113,4 +118,4 @@ def test_piconfig_client_uses_mtls_service_endpoint_for_assignment(monkeypatch):
     assert kwargs["cert"] == ("/certs/nautobot.crt", "/certs/nautobot.key")
     assert kwargs["verify"] == "/certs/ca.pem"
     assert kwargs["timeout"] == 12
-    assert worker["desired_queues"] == ["vpn-acme"]
+    assert worker["desired_queues"] == ["remote-worker-acme"]

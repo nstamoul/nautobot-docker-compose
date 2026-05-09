@@ -247,7 +247,7 @@
               <option value="{{ choice.slug }}" {% if choice.slug in worker.tenant_slugs %}selected{% endif %}>{{ choice.name }} ({{ choice.queue }})</option>
             {% endfor %}
           </select>
-          <div class="vpn-note">Select one or more queues. Clear all selected options and submit to drain this worker from tenant queues.</div>
+          <div class="vpn-note">Select one or more remote-worker queues. Clear all selected options and submit to drain this worker from tenant queues.</div>
           <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Update Assignment</button>
         </form>
       </div>

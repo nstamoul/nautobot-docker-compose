@@ -88,7 +88,9 @@ REMOTE_WORKER_STATE_FILE = Path(
     os.getenv("VPN_REMOTE_WORKER_STATE_FILE", str(ENV_DIR / "vpn_remote_workers.json"))
 ).resolve()
 REMOTE_WORKER_STALE_SECONDS = int(os.getenv("VPN_REMOTE_WORKER_STALE_SECONDS", "180"))
-REMOTE_QUEUE_NAME_RE = re.compile(r"^vpn-[a-z0-9]+(?:-[a-z0-9-]*[a-z0-9])?$")
+TENANT_QUEUE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9-]*[a-z0-9])?$")
+REMOTE_WORKER_QUEUE_PREFIX = "remote-worker-"
+LEGACY_VPN_QUEUE_PREFIX = "vpn-"
 
 if not VPN_SCRIPT.exists():
     raise RuntimeError(f"Expected vpn script at {VPN_SCRIPT}, but it was not found.")
@@ -532,19 +534,46 @@ def _normalize_timestamp(value: Optional[str]) -> Optional[str]:
 def _queue_name_error(queue_name: str) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail=f"Queue '{queue_name}' is not a valid SHMS VPN queue name.",
+        detail=f"Queue '{queue_name}' is not a valid SHMS remote worker queue name.",
     )
 
 
-def normalize_remote_queue_names(values: Optional[list[str]]) -> list[str]:
+def _tenant_slug_from_queue_name(queue_name: str, *, allow_legacy_vpn_alias: bool) -> tuple[str, bool]:
+    if queue_name.startswith(REMOTE_WORKER_QUEUE_PREFIX):
+        slug = queue_name[len(REMOTE_WORKER_QUEUE_PREFIX) :]
+        is_legacy = False
+    elif allow_legacy_vpn_alias and queue_name.startswith(LEGACY_VPN_QUEUE_PREFIX):
+        slug = queue_name[len(LEGACY_VPN_QUEUE_PREFIX) :]
+        is_legacy = True
+    else:
+        raise _queue_name_error(queue_name)
+
+    if not TENANT_QUEUE_SLUG_RE.fullmatch(slug):
+        raise _queue_name_error(queue_name)
+    return slug, is_legacy
+
+
+def _remote_worker_queue_name(slug: str) -> str:
+    return f"{REMOTE_WORKER_QUEUE_PREFIX}{slug}"
+
+
+def normalize_remote_queue_names(
+    values: Optional[list[str]],
+    *,
+    canonicalize_legacy_vpn_aliases: bool = True,
+) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()
     for raw_value in values or []:
         value = (raw_value or "").strip()
         if not value:
             continue
-        if not REMOTE_QUEUE_NAME_RE.fullmatch(value):
-            raise _queue_name_error(value)
+        slug, is_legacy = _tenant_slug_from_queue_name(
+            value,
+            allow_legacy_vpn_alias=True,
+        )
+        if is_legacy and canonicalize_legacy_vpn_aliases:
+            value = _remote_worker_queue_name(slug)
         if value in seen:
             continue
         normalized.append(value)
@@ -583,7 +612,10 @@ def _heartbeat_age(last_heartbeat: Optional[str]) -> Optional[int]:
 
 def build_remote_worker_status(worker_id: str, record: dict[str, Any]) -> RemoteWorkerStatus:
     desired_queues = normalize_remote_queue_names(record.get("desired_queues") or [])
-    current_queues = normalize_remote_queue_names(record.get("current_queues") or [])
+    current_queues = normalize_remote_queue_names(
+        record.get("current_queues") or [],
+        canonicalize_legacy_vpn_aliases=False,
+    )
     advertised_queues = normalize_remote_queue_names(record.get("advertised_queues") or [])
     heartbeat_age_seconds = _heartbeat_age(record.get("last_heartbeat"))
     stale = heartbeat_age_seconds is None or heartbeat_age_seconds > REMOTE_WORKER_STALE_SECONDS
@@ -661,7 +693,10 @@ def upsert_remote_worker(
     if advertised_queues is not None:
         record["advertised_queues"] = normalize_remote_queue_names(advertised_queues)
     if current_queues is not None:
-        record["current_queues"] = normalize_remote_queue_names(current_queues)
+        record["current_queues"] = normalize_remote_queue_names(
+            current_queues,
+            canonicalize_legacy_vpn_aliases=False,
+        )
     if status_value is not None:
         record["status"] = status_value.strip() or "unknown"
     record["last_heartbeat"] = now

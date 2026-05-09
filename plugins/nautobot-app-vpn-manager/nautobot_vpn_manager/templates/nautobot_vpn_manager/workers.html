@@ -292,8 +292,8 @@
             <summary id="worker_queue" data-filter-summary data-default-label="Any queue">Any queue</summary>
             <div class="vpn-filter-menu__options">
               <label class="vpn-filter-option">
-                <input type="checkbox" name="queue" value="vpn-generic" data-live-filter="queue" {% if "vpn-generic" in worker_filters.queue %}checked{% endif %}>
-                <span>Generic (vpn-generic)</span>
+                <input type="checkbox" name="queue" value="remote-worker-generic" data-live-filter="queue" {% if "remote-worker-generic" in worker_filters.queue %}checked{% endif %}>
+                <span>Generic (remote-worker-generic)</span>
               </label>
               {% for choice in tenant_queue_choices %}
                 <label class="vpn-filter-option">

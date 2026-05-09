@@ -43,7 +43,7 @@ def test_remote_worker_registration_assignment_and_heartbeat(client, headers):
         "software_version": "3.0.4",
         "platform": "docker-compose",
         "capabilities": {"vpn_type": "wireguard", "self_restart": True},
-        "advertised_queues": ["vpn-acme", "vpn-generic"],
+        "advertised_queues": ["remote-worker-acme", "remote-worker-generic"],
         "current_queues": [],
         "status": "starting",
     }
@@ -55,12 +55,12 @@ def test_remote_worker_registration_assignment_and_heartbeat(client, headers):
 
     response = client.post(
         "/remote-workers/tech-laptop-01/assignment",
-        json={"desired_queues": ["vpn-acme"]},
+        json={"desired_queues": ["remote-worker-acme"]},
         headers=headers,
     )
     assert response.status_code == 200
     assert response.json()["assignment_status"] == "pending-restart"
-    assert response.json()["desired_queues"] == ["vpn-acme"]
+    assert response.json()["desired_queues"] == ["remote-worker-acme"]
 
     heartbeat_response = client.post(
         "/remote-workers/tech-laptop-01/heartbeat",
@@ -68,12 +68,12 @@ def test_remote_worker_registration_assignment_and_heartbeat(client, headers):
         headers=headers,
     )
     assert heartbeat_response.status_code == 200
-    assert heartbeat_response.json()["desired_queues"] == ["vpn-acme"]
+    assert heartbeat_response.json()["desired_queues"] == ["remote-worker-acme"]
     assert heartbeat_response.json()["assignment_status"] == "pending-restart"
 
     active_response = client.post(
         "/remote-workers/tech-laptop-01/heartbeat",
-        json={"current_queues": ["vpn-acme"], "status": "up"},
+        json={"current_queues": ["remote-worker-acme"], "status": "up"},
         headers=headers,
     )
     assert active_response.status_code == 200
@@ -88,7 +88,7 @@ def test_remote_worker_list_marks_stale_records(client, headers, app_module):
             "worker_id": "pi-worker-01",
             "hostname": "pi-worker-01",
             "platform": "docker-compose",
-            "current_queues": ["vpn-generic"],
+            "current_queues": ["remote-worker-generic"],
             "status": "up",
         },
         headers=headers,
@@ -115,7 +115,7 @@ def test_assignment_rejects_unadvertised_queues(client, headers):
         json={
             "worker_id": "field-pi-01",
             "hostname": "field-pi-01",
-            "advertised_queues": ["vpn-generic"],
+            "advertised_queues": ["remote-worker-generic"],
         },
         headers=headers,
     )
@@ -123,8 +123,61 @@ def test_assignment_rejects_unadvertised_queues(client, headers):
 
     response = client.post(
         "/remote-workers/field-pi-01/assignment",
-        json={"desired_queues": ["vpn-acme"]},
+        json={"desired_queues": ["remote-worker-acme"]},
         headers=headers,
     )
     assert response.status_code == 400
     assert "advertised" in response.json()["detail"]
+
+
+def test_remote_worker_legacy_vpn_assignment_is_canonicalized_to_remote_worker(client, headers):
+    response = client.post(
+        "/remote-workers/register",
+        json={
+            "worker_id": "legacy-laptop-01",
+            "hostname": "legacy-laptop-01",
+            "advertised_queues": ["vpn-e-trikala", "vpn-generic"],
+            "current_queues": ["vpn-e-trikala"],
+            "status": "up",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["advertised_queues"] == [
+        "remote-worker-e-trikala",
+        "remote-worker-generic",
+    ]
+    assert response.json()["current_queues"] == ["vpn-e-trikala"]
+
+    response = client.post(
+        "/remote-workers/legacy-laptop-01/assignment",
+        json={"desired_queues": ["vpn-e-trikala"]},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["desired_queues"] == ["remote-worker-e-trikala"]
+    assert response.json()["current_queues"] == ["vpn-e-trikala"]
+    assert response.json()["assignment_status"] == "pending-restart"
+    assert response.json()["needs_restart"] is True
+
+    response = client.post(
+        "/remote-workers/legacy-laptop-01/heartbeat",
+        json={"current_queues": ["remote-worker-e-trikala"], "status": "up"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["assignment_status"] == "assigned"
+    assert response.json()["needs_restart"] is False
+
+
+def test_remote_worker_rejects_server_side_vpn_queue_without_tenant_slug(client, headers):
+    response = client.post(
+        "/remote-workers/register",
+        json={
+            "worker_id": "bad-worker-01",
+            "hostname": "bad-worker-01",
+            "advertised_queues": ["vpn"],
+        },
+        headers=headers,
+    )
+    assert response.status_code == 400

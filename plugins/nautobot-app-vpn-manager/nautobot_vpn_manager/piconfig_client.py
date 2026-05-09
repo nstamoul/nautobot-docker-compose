@@ -11,6 +11,8 @@ from urllib.parse import quote
 import requests
 
 DEFAULT_WORKER_ONLINE_TTL_SECONDS = 15 * 60
+REMOTE_WORKER_QUEUE_PREFIX = "remote-worker-"
+LEGACY_VPN_QUEUE_PREFIX = "vpn-"
 
 
 class PiconfigApiError(RuntimeError):
@@ -35,26 +37,28 @@ class PiconfigClientConfig:
 
 def _normalize_tenant_slug(value: str) -> str:
     value = (value or "").strip().lower()
-    if value.startswith("vpn-"):
-        value = value[4:]
+    for prefix in (REMOTE_WORKER_QUEUE_PREFIX, LEGACY_VPN_QUEUE_PREFIX):
+        if value.startswith(prefix):
+            value = value[len(prefix):]
+            break
     value = re.sub(r"[^a-z0-9_-]+", "-", value)
     value = re.sub(r"-{2,}", "-", value).strip("-_")
     return value
 
 
 def queue_names_for_tenant_slugs(tenant_slugs: list[str]) -> list[str]:
-    """Return piconfig-style Celery queue names for tenant slugs."""
+    """Return remote-worker Celery queue names for tenant slugs."""
 
     queues = []
     for tenant_slug in tenant_slugs:
         normalized = _normalize_tenant_slug(tenant_slug)
         if normalized:
-            queues.append(f"vpn-{normalized}")
+            queues.append(f"{REMOTE_WORKER_QUEUE_PREFIX}{normalized}")
     return queues
 
 
 def tenant_slugs_from_assignment_input(raw_value: str) -> list[str]:
-    """Parse user-entered tenant slugs or vpn-* queue names into tenant slugs."""
+    """Parse tenant slugs, remote-worker-* queues, or legacy vpn-* aliases into tenant slugs."""
 
     tenant_slugs: list[str] = []
     seen = set()
