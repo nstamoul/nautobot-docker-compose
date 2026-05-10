@@ -91,7 +91,7 @@ services:
       - "-c"
       - >-
         git config --global --add safe.directory /opt/nautobot/git/shms_nautobot_jobs_repo >/dev/null 2>&1 || true;
-        nautobot-server celery worker -l $$NAUTOBOT_LOG_LEVEL --events -Q default,breakglass
+        nautobot-server celery worker -l $$NAUTOBOT_LOG_LEVEL --events -Q default,breakglass,central-writer
     volumes:
       - "../jobs:/opt/nautobot/jobs"
       - "/opt/nautobot/git:/opt/nautobot/git"
