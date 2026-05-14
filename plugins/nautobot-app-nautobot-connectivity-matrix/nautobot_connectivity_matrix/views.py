@@ -1,14 +1,18 @@
 """UI views for the Connectivity Matrix Diagram app."""
 
+import logging
 import time
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.contenttypes.models import ContentType
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.urls import reverse
+from django.views import View
 from django.views.generic import FormView, TemplateView
 
 from nautobot.core.views import generic
-from nautobot.dcim.models import DeviceType, Location, ModuleType, Platform
+from nautobot.dcim.filters import DeviceFilterSet
+from nautobot.dcim.models import Device, DeviceType, Location, ModuleType, Platform
 from nautobot.extras.models import Role, Status
 from nautobot.tenancy.models import Tenant
 
@@ -17,6 +21,20 @@ from .forms import ConnectionPlanBatchForm, StackPlanImportForm
 from .stack_plan import import_stacks_from_xlsx
 from .tables import ConnectionPlanBatchTable
 from .filters import ConnectionPlanBatchFilterSet
+
+logger = logging.getLogger(__name__)
+
+
+PRESENTATION_QUERY_PARAMS = {
+    "clear_view",
+    "display",
+    "hide",
+    "page",
+    "per_page",
+    "saved_view",
+    "sort",
+    "tab",
+}
 
 
 class BatchListView(generic.ObjectListView):
@@ -158,3 +176,82 @@ class StackPlanView(LoginRequiredMixin, TemplateView):
             },
         }
         return context
+
+
+class DeviceCoverageExportView(LoginRequiredMixin, View):
+    """Download a coverage/EOX workbook for the current Device list filters."""
+
+    eox_source = "dlm"
+    filename_part = "dlm_eox"
+
+    def get(self, request):
+        helpers = self._coverage_helpers()
+        now = time.strftime("%d-%m-%Y_%H.%M.%S")
+
+        filter_data = request.GET.copy()
+        for key in PRESENTATION_QUERY_PARAMS:
+            filter_data.pop(key, None)
+
+        queryset = Device.objects.restrict(request.user, "view").all()
+        filterset = DeviceFilterSet(data=filter_data, queryset=queryset, request=request)
+        if not filterset.is_valid():
+            return HttpResponseBadRequest(filterset.errors.as_json())
+
+        device_pks = list(filterset.qs.values_list("pk", flat=True))
+        device_queryset = Device.objects.filter(pk__in=device_pks)
+        filter_kwargs = {"pk__in": device_pks}
+        module_filter_kwargs = {"device__in": device_queryset}
+
+        if self.eox_source == "cf":
+            devices = helpers["get_coverage_and_cf_eox_facts_from_orm"](logger, filter_kwargs)
+            module_rows = helpers["get_NB_MODULE_COVERAGE_ROWS"](
+                module_filter_kwargs,
+                start_device_id=len(devices),
+            )
+        else:
+            devices, inventory_pid_notices = helpers["get_coverage_and_dlm_eox_facts_from_orm"](logger, filter_kwargs)
+            module_rows = helpers["get_NB_MODULE_COVERAGE_ROWS_DLM"](
+                module_filter_kwargs,
+                inventory_pid_notices,
+                start_device_id=len(devices),
+            )
+
+        coverage_dict = helpers["get_NB_DEVICE_COVERAGE_DICT"](devices)
+        for index, module_row in enumerate(module_rows, start=1):
+            coverage_dict[f"module:{index}"] = [module_row]
+
+        file_content = helpers["output_NB_DEVICE_COVERAGE_DICT_to_excel"](coverage_dict, now)
+        filename = f"device_coverage_inventory_{self.filename_part}_{now}.xlsx"
+        response = HttpResponse(
+            file_content,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    @staticmethod
+    def _coverage_helpers():
+        import sys
+        from pathlib import Path
+
+        jobs_repo = Path("/opt/nautobot/git/shms_nautobot_jobs_repo")
+        if jobs_repo.exists() and str(jobs_repo) not in sys.path:
+            sys.path.insert(0, str(jobs_repo))
+
+        from jobs.device_inventory_coverage import device_inventory_coverage as coverage
+
+        return {
+            "get_NB_DEVICE_COVERAGE_DICT": coverage.get_NB_DEVICE_COVERAGE_DICT,
+            "get_NB_MODULE_COVERAGE_ROWS": coverage.get_NB_MODULE_COVERAGE_ROWS,
+            "get_NB_MODULE_COVERAGE_ROWS_DLM": coverage.get_NB_MODULE_COVERAGE_ROWS_DLM,
+            "get_coverage_and_cf_eox_facts_from_orm": coverage.get_coverage_and_cf_eox_facts_from_orm,
+            "get_coverage_and_dlm_eox_facts_from_orm": coverage.get_coverage_and_dlm_eox_facts_from_orm,
+            "output_NB_DEVICE_COVERAGE_DICT_to_excel": coverage.output_NB_DEVICE_COVERAGE_DICT_to_excel,
+        }
+
+
+class DeviceCoverageCFExportView(DeviceCoverageExportView):
+    """Download a custom-field EOX coverage workbook for the current Device list filters."""
+
+    eox_source = "cf"
+    filename_part = "cf_eox"

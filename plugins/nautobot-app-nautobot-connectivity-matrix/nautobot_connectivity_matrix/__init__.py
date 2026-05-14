@@ -24,6 +24,7 @@ class NautobotConnectivityMatrixConfig(NautobotAppConfig):
     default_settings = {}
     docs_view_name = "plugins:nautobot_connectivity_matrix:docs"
     searchable_models = []
+    template_extensions = "nautobot_connectivity_matrix.template_content.template_extensions"
 
 
 config = NautobotConnectivityMatrixConfig  # pylint:disable=invalid-name

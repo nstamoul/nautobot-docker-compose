@@ -33,4 +33,6 @@ urlpatterns = [
 
     # Stack-plan helpers
     path("stack-plan/", views.StackPlanView.as_view(), name="stack_plan"),
+    path("device-coverage-export/dlm/", views.DeviceCoverageExportView.as_view(), name="device_coverage_export_dlm"),
+    path("device-coverage-export/cf/", views.DeviceCoverageCFExportView.as_view(), name="device_coverage_export_cf"),
 ]
