@@ -10,7 +10,7 @@ from types import SimpleNamespace
 def load_template_content_module():
     module_path = (
         Path(__file__).resolve().parents[1]
-        / "patches"
+        / "plugins"
         / "nautobot_ui_plugin"
         / "template_content.py"
     )
@@ -66,7 +66,7 @@ def test_software_section_exposes_dlm_record_url(monkeypatch):
 def test_plugin_config_loads_without_installed_distribution_metadata(monkeypatch):
     module_path = (
         Path(__file__).resolve().parents[1]
-        / "patches"
+        / "plugins"
         / "nautobot_ui_plugin"
         / "__init__.py"
     )
@@ -86,3 +86,21 @@ def test_plugin_config_loads_without_installed_distribution_metadata(monkeypatch
 
     assert module.__version__
     assert module.config.name == "nautobot_ui_plugin"
+
+
+def test_ui_plugin_template_extensions_are_versioned_with_plugin_source():
+    module = load_template_content_module()
+
+    extension_names = {extension.__name__ for extension in module.template_extensions}
+
+    assert extension_names == {"LocationTopologyButtons", "DeviceEffectiveEOXContent"}
+
+
+def test_dockerfile_installs_versioned_ui_plugin_source():
+    dockerfile = Path(__file__).resolve().parents[1] / "environments" / "Dockerfile"
+    dockerfile_text = dockerfile.read_text()
+
+    assert "COPY ../plugins/nautobot_ui_plugin/__init__.py" in dockerfile_text
+    assert "COPY ../plugins/nautobot_ui_plugin/template_content.py" in dockerfile_text
+    assert "COPY ../patches/nautobot_ui_plugin/__init__.py" not in dockerfile_text
+    assert "COPY ../patches/nautobot_ui_plugin/template_content.py" not in dockerfile_text

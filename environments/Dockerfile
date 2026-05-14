@@ -70,8 +70,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # COPY ../packages /source/packages
 
 # Apply SHMS overrides for the published nautobot-ui-plugin package.
-COPY ../patches/nautobot_ui_plugin/__init__.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/__init__.py
-COPY ../patches/nautobot_ui_plugin/template_content.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/template_content.py
+COPY ../plugins/nautobot_ui_plugin/__init__.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/__init__.py
+COPY ../plugins/nautobot_ui_plugin/template_content.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/template_content.py
 COPY ../plugins/nautobot_ui_plugin/views.py /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/views.py
 COPY ../plugins/nautobot_ui_plugin/templates /usr/local/lib/python${PYTHON_VER}/site-packages/nautobot_ui_plugin/templates
 
