@@ -6,6 +6,7 @@ from nautobot.apps.constants import CHARFIELD_MAX_LENGTH
 from nautobot.apps.models import BaseModel, PrimaryModel, extras_features
 
 from nbcot.choices import CiscoEnvironmentChoices, ChangeSourceChoices, OrderUpdateTypeChoices, SyncStatusChoices
+from nbcot.cisco.line_items import line_number_sort_value
 
 
 @extras_features("custom_links", "custom_validators", "export_templates", "graphql", "webhooks")
@@ -55,10 +56,12 @@ class CiscoOrderLine(BaseModel):
     order = models.ForeignKey(CiscoOrder, on_delete=models.CASCADE, related_name="lines")
     line_key = models.CharField(max_length=CHARFIELD_MAX_LENGTH)
     line_number = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    line_sort_key = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True, editable=False)
     sku = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
     description = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
     shipment_status = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    is_tracked = models.BooleanField(default=False)
     quantity_ordered = models.PositiveIntegerField(default=0)
     quantity_fulfilled = models.PositiveIntegerField(default=0)
     quantity_backordered = models.PositiveIntegerField(default=0)
@@ -69,10 +72,15 @@ class CiscoOrderLine(BaseModel):
     class Meta:
         """Meta class."""
 
-        ordering = ["order__order_number", "line_number", "line_key"]
+        ordering = ["order__order_number", "line_sort_key", "line_key"]
         unique_together = ("order", "line_key")
         verbose_name = "Cisco order line"
         verbose_name_plural = "Cisco order lines"
+
+    def save(self, *args, **kwargs):
+        """Set the sortable line key before saving."""
+        self.line_sort_key = line_number_sort_value(self.line_number)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         """Stringify instance."""

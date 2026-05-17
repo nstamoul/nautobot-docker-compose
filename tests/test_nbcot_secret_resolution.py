@@ -26,7 +26,7 @@ class NBCOTSecretResolutionTest(TestCase):
     def test_load_uses_shared_resolver_when_plugin_config_missing_credentials(self):
         """NBCOT should delegate env-to-Vault fallback to SecretResolver."""
         resolver = MagicMock()
-        resolver.resolve_mapping.return_value = {
+        resolver.resolve_cisco_api_credentials.return_value = {
             "client_id": "resolver-client-id",
             "client_secret": "resolver-client-secret",
         }
@@ -44,7 +44,7 @@ class NBCOTSecretResolutionTest(TestCase):
             settings_obj = CiscoSettings.load()
 
         from_env.assert_called_once()
-        resolver.resolve_mapping.assert_called_once()
+        resolver.resolve_cisco_api_credentials.assert_called_once()
         self.assertEqual(settings_obj.client_id, "resolver-client-id")
         self.assertEqual(settings_obj.client_secret, "resolver-client-secret")
 

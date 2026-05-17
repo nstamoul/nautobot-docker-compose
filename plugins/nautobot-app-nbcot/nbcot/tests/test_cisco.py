@@ -8,6 +8,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 
 from nbcot.cisco.client import CiscoGraphQLClient, CiscoSettings
 from nbcot.cisco.exceptions import CiscoGraphQLError, NBCOTConfigurationError
+from nbcot.cisco.line_items import build_line_tree, group_order_lines, line_number_sort_key
 from nbcot.cisco.normalizers import CiscoPayloadNormalizer
 from nbcot.cisco.sync import CiscoOrderSynchronizer
 from nbcot.models import CiscoOrderLine, CiscoOrderUpdate
@@ -211,6 +212,61 @@ class CiscoGraphQLClientTest(SimpleTestCase):
         )
 
 
+class CiscoLineItemHelperTest(SimpleTestCase):
+    """Test line item sorting and hierarchy helpers."""
+
+    def test_line_number_sort_key_orders_dotted_numeric_paths_naturally(self):
+        """Dotted line numbers should sort by numeric hierarchy instead of text."""
+        line_numbers = ["11.0", "1.0.10", "1.0.2", "1.0", "10.0", "1.0.1", "2.0", "1.0.11.2"]
+
+        self.assertEqual(
+            sorted(line_numbers, key=line_number_sort_key),
+            ["1.0", "1.0.1", "1.0.2", "1.0.10", "1.0.11.2", "2.0", "10.0", "11.0"],
+        )
+
+    def test_group_order_lines_places_minor_lines_under_major_lines(self):
+        """Lines ending .0 should be group headers with nested minor lines below them."""
+        lines = [
+            SimpleNamespace(line_number="1.0.10", line_key="1.0.10"),
+            SimpleNamespace(line_number="2.0", line_key="2.0"),
+            SimpleNamespace(line_number="1.0", line_key="1.0"),
+            SimpleNamespace(line_number="1.0.2", line_key="1.0.2"),
+            SimpleNamespace(line_number="1.0.1", line_key="1.0.1"),
+        ]
+
+        groups = group_order_lines(lines)
+
+        self.assertEqual([group.major.line_number for group in groups], ["1.0", "2.0"])
+        self.assertEqual([line.line_number for line in groups[0].minor_lines], ["1.0.1", "1.0.2", "1.0.10"])
+        self.assertEqual(groups[1].minor_lines, [])
+
+    def test_build_line_tree_adds_submajor_level_below_root_line(self):
+        """X.Y lines should be expandable parents under X.0 roots."""
+        lines = [
+            SimpleNamespace(line_number="45.1.1", line_key="45.1.1"),
+            SimpleNamespace(line_number="45.1.0.1", line_key="45.1.0.1"),
+            SimpleNamespace(line_number="45.1", line_key="45.1"),
+            SimpleNamespace(line_number="45.0", line_key="45.0"),
+            SimpleNamespace(line_number="1.0.1", line_key="1.0.1"),
+            SimpleNamespace(line_number="1.0", line_key="1.0"),
+            SimpleNamespace(line_number="1.0.0.1", line_key="1.0.0.1"),
+        ]
+
+        rows = build_line_tree(lines)
+        rows_by_number = {row.line.line_number: row for row in rows}
+
+        self.assertEqual(
+            [row.line.line_number for row in rows],
+            ["1.0", "1.0.0.1", "1.0.1", "45.0", "45.1", "45.1.0.1", "45.1.1"],
+        )
+        self.assertEqual(rows_by_number["45.0"].depth, 0)
+        self.assertEqual(rows_by_number["45.1"].parent_id, rows_by_number["45.0"].row_id)
+        self.assertEqual(rows_by_number["45.1"].depth, 1)
+        self.assertTrue(rows_by_number["45.1"].has_children)
+        self.assertEqual(rows_by_number["45.1.0.1"].parent_id, rows_by_number["45.1"].row_id)
+        self.assertEqual(rows_by_number["45.1.1"].parent_id, rows_by_number["45.1"].row_id)
+
+
 class CiscoPayloadNormalizerTest(TestCase):
     """Test payload normalization."""
 
@@ -317,3 +373,19 @@ class CiscoOrderSynchronizerTest(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.status, "Shipped")
         self.assertTrue(CiscoOrderUpdate.objects.filter(order=order, update_type="status_changed").exists())
+
+    def test_sync_marks_selected_lines_tracked(self):
+        """Synchronizer should persist item-level tracking choices by line key."""
+        payload = {
+            "orderNumber": "SO-9003",
+            "status": "Submitted",
+            "lines": [
+                {"lineKey": "major-1", "lineNumber": "1.0"},
+                {"lineKey": "minor-1", "lineNumber": "1.0.1"},
+            ],
+        }
+        synchronizer = self._build_synchronizer(payload)
+
+        order, _changes = synchronizer.sync_order_by_number("SO-9003", tracked_line_keys=["minor-1"])
+
+        self.assertEqual(list(order.lines.filter(is_tracked=True).values_list("line_key", flat=True)), ["minor-1"])

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 import requests
 from django.conf import settings
-from shms_secret_resolver import SecretResolver, VaultSecretRef
+from shms_secret_resolver import SecretResolver
 
 from nbcot.constants import DEFAULT_TOKEN_URL, ENVIRONMENT_ENDPOINTS
 
@@ -55,20 +54,8 @@ def _resolve_client_credentials(config: dict[str, Any]) -> tuple[str, str]:
     if client_id and client_secret:
         return client_id, client_secret
 
-    vault_mount = os.getenv("CISCO_API_VAULT_MOUNT", "kv").strip("/")
-    vault_path = os.getenv("CISCO_API_VAULT_PATH", "CISCO_API_CONSOLE").strip("/")
     resolver = SecretResolver.from_env()
-    credentials = resolver.resolve_mapping(
-        env_names_by_field={
-            "client_id": ("CISCO_MODERN_API_CLIENT_ID", "NBCOT_CLIENT_ID", "API_TOKEN_CLIENT_ID"),
-            "client_secret": ("CISCO_MODERN_API_SECRET", "NBCOT_CLIENT_SECRET", "API_TOKEN_CLIENT_PASS"),
-        },
-        vault=VaultSecretRef(mount=vault_mount, path=vault_path),
-        vault_keys_by_field={
-            "client_id": ("CISCO_MODERN_API_CLIENT_ID", "API_TOKEN_CLIENT_ID"),
-            "client_secret": ("CISCO_MODERN_API_SECRET", "API_TOKEN_CLIENT_PASS"),
-        },
-    )
+    credentials = resolver.resolve_cisco_api_credentials()
     return client_id or credentials.get("client_id", ""), client_secret or credentials.get("client_secret", "")
 
 

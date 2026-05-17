@@ -75,6 +75,12 @@ class OrderSearchForm(forms.Form):
     """Ad hoc Cisco search form."""
 
     environment = forms.ChoiceField(choices=CiscoEnvironmentChoices, label="Environment")
+    # Backward-compatible aliases used by existing links and model-field search URLs.
+    order_number = forms.CharField(required=False, widget=forms.HiddenInput)
+    customer_po_number = forms.CharField(required=False, widget=forms.HiddenInput)
+    account_name = forms.CharField(required=False, widget=forms.HiddenInput)
+    account_number = forms.CharField(required=False, widget=forms.HiddenInput)
+    status = forms.CharField(required=False, widget=forms.HiddenInput)
     sales_order_number = forms.CharField(required=False, label="Sales Order No.")
     order_name = forms.CharField(required=False, label="Order Name")
     web_order_id = forms.CharField(required=False, label="Web Order ID")

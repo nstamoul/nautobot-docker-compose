@@ -12,6 +12,11 @@
             </div>
             <div class="panel-body">
                 <form method="get">
+                    {{ form.order_number }}
+                    {{ form.customer_po_number }}
+                    {{ form.account_name }}
+                    {{ form.account_number }}
+                    {{ form.status }}
                     <div class="form-group">
                         {{ form.environment.label_tag }}
                         {{ form.environment }}
@@ -104,6 +109,7 @@
                                 <th>Order Number</th>
                                 <th>Customer PO</th>
                                 <th>Account</th>
+                                <th>Account #</th>
                                 <th>Status</th>
                                 <th>Promised</th>
                                 <th>Estimated</th>
@@ -118,12 +124,14 @@
                                     <td>{{ result.order_number }}</td>
                                     <td>{{ result.customer_po_number|default:"-" }}</td>
                                     <td>{{ result.account_name|default:"-" }}</td>
+                                    <td>{{ result.account_number|default:"-" }}</td>
                                     <td>{{ result.status|default:"-" }}</td>
                                     <td>{{ result.promised_delivery_date|default:"-" }}</td>
                                     <td>{{ result.estimated_delivery_date|default:"-" }}</td>
                                     <td>{{ result.open_exception_count }}</td>
                                     <td class="text-right">
-                                        <form method="post" action="{% url 'plugins:nbcot:order_track' %}">
+                                        <a class="btn btn-sm btn-primary" href="{% url 'plugins:nbcot:order_preview' %}?environment={{ selected_environment|urlencode }}&order_number={{ result.order_number|urlencode }}">Open</a>
+                                        <form method="post" action="{% url 'plugins:nbcot:order_track' %}" style="display: inline-block;">
                                             {% csrf_token %}
                                             <input type="hidden" name="environment" value="{{ selected_environment }}">
                                             <input type="hidden" name="order_number" value="{{ result.order_number }}">

@@ -144,6 +144,29 @@ class SecretResolverTest(TestCase):
 
         self.assertEqual(values, {"client_id": "env-client-id", "client_secret": "vault-secret"})
 
+    def test_resolve_cisco_api_credentials_centralizes_aliases(self):
+        """Cisco API credentials should use the shared env and Vault alias catalog."""
+        os.environ.update(
+            {
+                "VAULT_ADDR": "https://vault.example.invalid",
+                "VAULT_TOKEN": "legacy-token",
+                "CISCO_API_VAULT_MOUNT": "kv",
+                "CISCO_API_VAULT_PATH": "CISCO_API_CONSOLE",
+            }
+        )
+        http_session = MagicMock()
+        http_session.get.return_value = FakeResponse(
+            {"data": {"data": {"API_TOKEN_CLIENT_ID": "vault-client-id", "API_TOKEN_CLIENT_PASS": "vault-secret"}}}
+        )
+
+        resolver = SecretResolver.from_env(http_session=http_session)
+        values = resolver.resolve_cisco_api_credentials()
+
+        self.assertEqual(values, {"client_id": "vault-client-id", "client_secret": "vault-secret"})
+        http_session.get.assert_called_once()
+        args, _ = http_session.get.call_args
+        self.assertEqual(args[0], "https://vault.example.invalid/v1/kv/data/CISCO_API_CONSOLE")
+
     def test_populate_env_from_vault_fills_only_missing_values(self):
         """Startup population should preserve explicit env values and fill missing ones from Vault."""
         os.environ.update(
@@ -168,3 +191,37 @@ class SecretResolverTest(TestCase):
         self.assertEqual(populated, ["MISSING_SECRET"])
         self.assertEqual(os.environ["EXISTING_SECRET"], "from-env")
         self.assertEqual(os.environ["MISSING_SECRET"], "vault-missing")
+
+    def test_populate_shms_startup_env_uses_central_startup_aliases(self):
+        """SHMS startup population should use shared env names and legacy Cisco aliases."""
+        os.environ.update(
+            {
+                "NAUTOBOT_DB_PASSWORD": "from-env",
+                "VAULT_ADDR": "https://vault.example.invalid",
+                "VAULT_TOKEN": "legacy-token",
+            }
+        )
+        http_session = MagicMock()
+        http_session.get.return_value = FakeResponse(
+            {
+                "data": {
+                    "data": {
+                        "NAUTOBOT_DB_PASSWORD": "from-vault",
+                        "API_TOKEN_CLIENT_ID": "vault-client-id",
+                        "API_TOKEN_CLIENT_PASS": "vault-client-secret",
+                    }
+                }
+            }
+        )
+
+        resolver = SecretResolver.from_env(http_session=http_session)
+        populated = resolver.populate_shms_startup_env(
+            vault=VaultSecretRef(mount="kv", path="nautobot/shms/app")
+        )
+
+        self.assertIn("CISCO_MODERN_API_CLIENT_ID", populated)
+        self.assertIn("CISCO_MODERN_API_SECRET", populated)
+        self.assertNotIn("NAUTOBOT_DB_PASSWORD", populated)
+        self.assertEqual(os.environ["NAUTOBOT_DB_PASSWORD"], "from-env")
+        self.assertEqual(os.environ["CISCO_MODERN_API_CLIENT_ID"], "vault-client-id")
+        self.assertEqual(os.environ["CISCO_MODERN_API_SECRET"], "vault-client-secret")

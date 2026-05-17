@@ -1,5 +1,6 @@
 """View tests for NBCOT."""
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -85,6 +86,114 @@ class NBCOTCustomViewTest(TestCase):
         mock_sync.search_orders.assert_called_once_with({"order_number": "SO-7001"})
 
     @patch("nbcot.views.CiscoOrderSynchronizer")
+    def test_preview_view_renders_lines_without_persisting_order(self, mock_sync_class):
+        """Previewing an order should not create a tracked CiscoOrder row."""
+        mock_sync = mock_sync_class.return_value
+        mock_sync.preview_order_by_number.return_value = SimpleNamespace(
+            order_number="SO-7100",
+            customer_po_number="PO-7100",
+            account_name="Acme",
+            account_number="A-7100",
+            status="Submitted",
+            status_detail="",
+            lifecycle_state="SUCCESS",
+            requested_delivery_date=None,
+            promised_delivery_date=None,
+            estimated_delivery_date=None,
+            open_exception_count=0,
+            lines=[
+                SimpleNamespace(
+                    line_key="major-1",
+                    line_number="1.0",
+                    sku="N9K-C93180YC-FX",
+                    description="Switch",
+                    status="Open",
+                    shipment_status="",
+                    quantity_ordered=1,
+                    quantity_fulfilled=0,
+                    quantity_backordered=1,
+                    promised_delivery_date=None,
+                    estimated_delivery_date=None,
+                ),
+                SimpleNamespace(
+                    line_key="minor-1",
+                    line_number="1.0.1",
+                    sku="CON-SNT",
+                    description="Support",
+                    status="Open",
+                    shipment_status="",
+                    quantity_ordered=1,
+                    quantity_fulfilled=0,
+                    quantity_backordered=1,
+                    promised_delivery_date=None,
+                    estimated_delivery_date=None,
+                ),
+            ],
+        )
+
+        response = self.client.get(
+            reverse("plugins:nbcot:order_preview"),
+            {"environment": "prod", "order_number": "SO-7100"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "SO-7100")
+        self.assertContains(response, "N9K-C93180YC-FX")
+        self.assertContains(response, "CON-SNT")
+        self.assertContains(response, 'data-line-filter="sku"')
+        self.assertContains(response, 'data-line-sort="line"')
+        self.assertFalse(models.CiscoOrder.objects.filter(order_number="SO-7100").exists())
+        mock_sync_class.assert_called_once_with(environment_override="prod")
+        mock_sync.preview_order_by_number.assert_called_once_with("SO-7100")
+
+    def test_detail_view_uses_line_tree_controls_for_persisted_lines(self):
+        """Saved order detail should expose the same line filtering, sorting, and tree controls."""
+        fixtures.create_line(self.order, line_key="45.0", line_number="45.0", sku="HCI-MAJOR", is_tracked=True)
+        fixtures.create_line(self.order, line_key="45.1", line_number="45.1", sku="HCI-SUBMAJOR")
+        fixtures.create_line(self.order, line_key="45.1.1", line_number="45.1.1", sku="HCI-CHILD")
+
+        response = self.client.get(self.order.get_absolute_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-line-tree="nbcot-order-lines-')
+        self.assertContains(response, 'data-line-filter="all"')
+        self.assertContains(response, 'data-line-filter="sku"')
+        self.assertContains(response, 'data-line-sort="line"')
+        self.assertContains(response, 'data-line-action="expand-all"')
+        self.assertContains(response, 'data-line-action="collapse-all"')
+        self.assertContains(response, 'data-line-action="select-visible"')
+        self.assertContains(response, 'data-line-action="clear-visible"')
+        self.assertContains(response, "Save Line Tracking")
+        self.assertContains(response, 'name="line_keys" value="45.0" checked')
+        self.assertContains(response, 'name="line_keys" value="45.1"')
+        self.assertContains(response, "HCI-SUBMAJOR")
+
+    def test_line_tracking_view_updates_selected_lines(self):
+        """Saved order detail should persist the line tracking checkbox selections."""
+        major_line = fixtures.create_line(self.order, line_key="45.0", line_number="45.0", sku="HCI-MAJOR")
+        tracked_child = fixtures.create_line(
+            self.order,
+            line_key="45.1",
+            line_number="45.1",
+            sku="HCI-SUBMAJOR",
+            is_tracked=True,
+        )
+        untracked_child = fixtures.create_line(self.order, line_key="45.1.1", line_number="45.1.1", sku="HCI-CHILD")
+
+        response = self.client.post(
+            reverse("plugins:nbcot:ciscoorder_line_tracking", kwargs={"pk": self.order.pk}),
+            {"line_keys": [major_line.line_key, untracked_child.line_key]},
+        )
+
+        self.assertRedirects(response, self.order.get_absolute_url())
+        major_line.refresh_from_db()
+        tracked_child.refresh_from_db()
+        untracked_child.refresh_from_db()
+        self.assertTrue(major_line.is_tracked)
+        self.assertFalse(tracked_child.is_tracked)
+        self.assertTrue(untracked_child.is_tracked)
+
+    @patch("nbcot.views.CiscoOrderSynchronizer")
     def test_track_view_redirects_to_order(self, mock_sync_class):
         """Tracking an order should redirect to the detail view."""
         mock_sync = mock_sync_class.return_value
@@ -95,6 +204,33 @@ class NBCOTCustomViewTest(TestCase):
         )
         self.assertRedirects(response, self.order.get_absolute_url())
         mock_sync_class.assert_called_once_with(environment_override="prod")
+        mock_sync.sync_order_by_number.assert_called_once_with(
+            order_number=self.order.order_number,
+            source="manual",
+            tracked_line_keys=None,
+        )
+
+    @patch("nbcot.views.CiscoOrderSynchronizer")
+    def test_track_view_passes_selected_line_keys(self, mock_sync_class):
+        """Tracking from preview should pass selected line keys to the synchronizer."""
+        mock_sync = mock_sync_class.return_value
+        mock_sync.sync_order_by_number.return_value = (self.order, [])
+
+        response = self.client.post(
+            reverse("plugins:nbcot:order_track"),
+            {
+                "environment": "prod",
+                "order_number": self.order.order_number,
+                "line_keys": ["major-1", "minor-1"],
+            },
+        )
+
+        self.assertRedirects(response, self.order.get_absolute_url())
+        mock_sync.sync_order_by_number.assert_called_once_with(
+            order_number=self.order.order_number,
+            source="manual",
+            tracked_line_keys=["major-1", "minor-1"],
+        )
 
     @patch("nbcot.views.CiscoSubscriptionService")
     def test_ccwr_view_renders_detail(self, mock_service_class):

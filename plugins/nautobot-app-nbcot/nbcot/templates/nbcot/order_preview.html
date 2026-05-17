@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}NBCOT Order Preview{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <strong>Order Preview</strong>
+                <a class="btn btn-xs btn-default pull-right" href="{% url 'plugins:nbcot:order_search' %}?environment={{ selected_environment|urlencode }}&order_number={{ order_number|urlencode }}">Back to Search</a>
+            </div>
+            <div class="panel-body">
+                {% if error_message %}
+                    <div class="alert alert-danger">{{ error_message }}</div>
+                {% elif snapshot %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-condensed">
+                                <tbody>
+                                    <tr><th>Environment</th><td>{{ selected_environment|upper }}</td></tr>
+                                    <tr><th>Order Number</th><td>{{ snapshot.order_number }}</td></tr>
+                                    <tr><th>Customer PO</th><td>{{ snapshot.customer_po_number|default:"-" }}</td></tr>
+                                    <tr><th>Account</th><td>{{ snapshot.account_name|default:"-" }}</td></tr>
+                                    <tr><th>Account #</th><td>{{ snapshot.account_number|default:"-" }}</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-condensed">
+                                <tbody>
+                                    <tr><th>Status</th><td>{{ snapshot.status|default:"-" }}</td></tr>
+                                    <tr><th>Status Detail</th><td>{{ snapshot.status_detail|default:"-" }}</td></tr>
+                                    <tr><th>Lifecycle</th><td>{{ snapshot.lifecycle_state|default:"-" }}</td></tr>
+                                    <tr><th>Promised</th><td>{{ snapshot.promised_delivery_date|default:"-" }}</td></tr>
+                                    <tr><th>Estimated</th><td>{{ snapshot.estimated_delivery_date|default:"-" }}</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <form method="post" action="{% url 'plugins:nbcot:order_track' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="environment" value="{{ selected_environment }}">
+                        <input type="hidden" name="order_number" value="{{ snapshot.order_number }}">
+                        <input type="hidden" name="line_selection_submitted" value="1">
+
+                        <div class="clearfix" style="margin-bottom: 12px;">
+                            <button type="submit" class="btn btn-success btn-sm pull-right">Track Selected Lines</button>
+                        </div>
+
+                        {% include "nbcot/inc/order_line_tree.html" with line_rows=line_rows line_tree_id="nbcot-preview-lines" tracking_mode=True empty_message="No line items were returned for this order." %}
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

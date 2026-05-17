@@ -32,16 +32,27 @@ class CiscoOrderSynchronizer:
         results = self.client.search_orders(filters)
         return [self.normalizer.normalize_search_result(result) for result in results]
 
-    @transaction.atomic
-    def sync_order_by_number(self, order_number: str, source: str = ChangeSourceChoices.POLL):
-        """Fetch order details and persist a normalized snapshot."""
+    def preview_order_by_number(self, order_number: str):
+        """Fetch and normalize order details without persisting them."""
         raw_payload = self.client.get_order_details(order_number)
         snapshot = self.normalizer.normalize_order_details(raw_payload)
         if not snapshot.order_number:
             raise ValueError("Cisco response did not contain an order number.")
+        return snapshot
+
+    @transaction.atomic
+    def sync_order_by_number(
+        self,
+        order_number: str,
+        source: str = ChangeSourceChoices.POLL,
+        tracked_line_keys: list[str] | None = None,
+    ):
+        """Fetch order details and persist a normalized snapshot."""
+        snapshot = self.preview_order_by_number(order_number)
+        environment = getattr(getattr(self.client, "settings", None), "environment", "poe")
 
         order, created = CiscoOrder.objects.get_or_create(
-            environment=self.client.settings.environment,
+            environment=environment,
             order_number=snapshot.order_number,
             defaults={
                 "is_tracked": True,
@@ -60,7 +71,7 @@ class CiscoOrderSynchronizer:
         }
 
         order.customer_po_number = snapshot.customer_po_number
-        order.environment = self.client.settings.environment
+        order.environment = environment
         order.account_name = snapshot.account_name
         order.account_number = snapshot.account_number
         order.status = snapshot.status
@@ -78,7 +89,7 @@ class CiscoOrderSynchronizer:
         order.raw_payload = snapshot.raw_payload
         order.validated_save()
 
-        self._sync_lines(order, snapshot.lines)
+        self._sync_lines(order, snapshot.lines, tracked_line_keys=tracked_line_keys)
         changes = self._record_changes(order, previous_state, snapshot, created=created, source=source)
         return order, changes
 
@@ -97,9 +108,10 @@ class CiscoOrderSynchronizer:
             raw_payload={},
         )
 
-    def _sync_lines(self, order: CiscoOrder, lines):
+    def _sync_lines(self, order: CiscoOrder, lines, tracked_line_keys: list[str] | None = None):
         existing = {line.line_key: line for line in order.lines.all()}
         seen_keys = set()
+        tracked_line_key_set = set(tracked_line_keys) if tracked_line_keys is not None else None
         for line in lines:
             line_obj = existing.get(line.line_key)
             if line_obj is None:
@@ -114,6 +126,8 @@ class CiscoOrderSynchronizer:
             line_obj.quantity_backordered = line.quantity_backordered
             line_obj.promised_delivery_date = line.promised_delivery_date
             line_obj.estimated_delivery_date = line.estimated_delivery_date
+            if tracked_line_key_set is not None:
+                line_obj.is_tracked = line.line_key in tracked_line_key_set
             line_obj.raw_payload = line.raw_payload
             line_obj.validated_save()
             seen_keys.add(line.line_key)

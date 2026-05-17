@@ -71,6 +71,7 @@ class CiscoOrderLineTable(BaseTable):
             "description",
             "status",
             "shipment_status",
+            "is_tracked",
             "quantity_ordered",
             "quantity_fulfilled",
             "quantity_backordered",

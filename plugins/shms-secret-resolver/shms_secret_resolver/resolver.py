@@ -11,6 +11,47 @@ import requests
 
 LOGGER = logging.getLogger(__name__)
 
+SHMS_STARTUP_SECRET_ENV_NAMES = (
+    "NAUTOBOT_AUTH_LDAP_BIND_PASSWORD",
+    "NAUTOBOT_CREATE_SUPERUSER",
+    "NAUTOBOT_DB_PASSWORD",
+    "NAUTOBOT_MINIO_ACCESS_KEY",
+    "NAUTOBOT_MINIO_SECRET_KEY",
+    "NAUTOBOT_NAPALM_PASSWORD",
+    "NAUTOBOT_NAPALM_USERNAME",
+    "NAUTOBOT_REDIS_PASSWORD",
+    "NAUTOBOT_SECRET_KEY",
+    "NAUTOBOT_SUPERUSER_API_TOKEN",
+    "NAUTOBOT_SUPERUSER_EMAIL",
+    "NAUTOBOT_SUPERUSER_NAME",
+    "NAUTOBOT_SUPERUSER_PASSWORD",
+    "POSTGRES_PASSWORD",
+    "PGPASSWORD",
+    "CISCO_MODERN_API_CLIENT_ID",
+    "CISCO_MODERN_API_SECRET",
+    "VPN_CONTROL_API_KEY",
+)
+
+SHMS_STARTUP_SECRET_KEYS_BY_ENV = {
+    "CISCO_MODERN_API_CLIENT_ID": ("CISCO_MODERN_API_CLIENT_ID", "API_TOKEN_CLIENT_ID"),
+    "CISCO_MODERN_API_SECRET": ("CISCO_MODERN_API_SECRET", "API_TOKEN_CLIENT_PASS"),
+}
+
+CISCO_API_CLIENT_ID_ENV_NAMES = (
+    "CISCO_MODERN_API_CLIENT_ID",
+    "NBCOT_CLIENT_ID",
+    "API_TOKEN_CLIENT_ID",
+)
+CISCO_API_CLIENT_SECRET_ENV_NAMES = (
+    "CISCO_MODERN_API_SECRET",
+    "NBCOT_CLIENT_SECRET",
+    "API_TOKEN_CLIENT_PASS",
+)
+CISCO_API_VAULT_KEYS_BY_FIELD = {
+    "client_id": ("CISCO_MODERN_API_CLIENT_ID", "API_TOKEN_CLIENT_ID"),
+    "client_secret": ("CISCO_MODERN_API_SECRET", "API_TOKEN_CLIENT_PASS"),
+}
+
 
 def _first_nonempty(env: Mapping[str, str], *names: str) -> str:
     """Return the first non-empty value from the provided environment names."""
@@ -174,6 +215,40 @@ class SecretResolver:
             if not values[field_name]:
                 self._log_source("unresolved", vault=vault, field=field_name)
         return values
+
+    def resolve_cisco_api_credentials(
+        self,
+        *,
+        vault_mount: str | None = None,
+        vault_path: str | None = None,
+        kv_version: str | None = None,
+    ) -> dict[str, str]:
+        """Resolve Cisco API OAuth credentials from env aliases, then Vault aliases."""
+        mount = (vault_mount or self.env.get("CISCO_API_VAULT_MOUNT") or "kv").strip("/")
+        path = (vault_path or self.env.get("CISCO_API_VAULT_PATH") or "CISCO_API_CONSOLE").strip("/")
+        version = kv_version or self.env.get("CISCO_API_VAULT_KV_VERSION") or "v2"
+        return self.resolve_mapping(
+            env_names_by_field={
+                "client_id": CISCO_API_CLIENT_ID_ENV_NAMES,
+                "client_secret": CISCO_API_CLIENT_SECRET_ENV_NAMES,
+            },
+            vault=VaultSecretRef(mount=mount, path=path, kv_version=version),
+            vault_keys_by_field=CISCO_API_VAULT_KEYS_BY_FIELD,
+        )
+
+    def populate_shms_startup_env(
+        self,
+        *,
+        vault: VaultSecretRef,
+        overwrite: bool = False,
+    ) -> list[str]:
+        """Populate the SHMS Nautobot startup secret env contract from Vault."""
+        return self.populate_env_from_vault(
+            env_names=SHMS_STARTUP_SECRET_ENV_NAMES,
+            vault=vault,
+            keys_by_env=SHMS_STARTUP_SECRET_KEYS_BY_ENV,
+            overwrite=overwrite,
+        )
 
     def populate_env_from_vault(
         self,
