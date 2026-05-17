@@ -218,6 +218,31 @@ def apply_patches():
         )
         success = False
 
+    try:
+        from meraki_ssot_adapter_fix import apply_meraki_ssot_adapter_fix
+
+        if apply_meraki_ssot_adapter_fix():
+            print("✓✓✓ Meraki SSoT adapter patch applied at Nautobot startup ✓✓✓")
+            LOGGER.info("✓ Meraki SSoT adapter patch applied successfully at Nautobot startup")
+        else:
+            if _defer_patch_until_runtime(
+                apply_meraki_ssot_adapter_fix,
+                "meraki_ssot_adapter",
+            ):
+                print("~~~ Meraki SSoT adapter patch deferred until runtime ~~~")
+            else:
+                print("✗✗✗ Meraki SSoT adapter patch FAILED to apply ✗✗✗")
+                LOGGER.warning("✗ Meraki SSoT adapter patch failed to apply")
+                success = False
+    except Exception as exc:
+        print(f"✗✗✗ Error applying Meraki SSoT adapter patch: {exc} ✗✗✗")
+        LOGGER.error(
+            "Error applying Meraki SSoT adapter patch: %s",
+            exc,
+            exc_info=True,
+        )
+        success = False
+
     return success
 
 
