@@ -247,12 +247,12 @@ Live Nautobot GitRepository records:
 | Name | Remote URL | Branch |
 |---|---|---|
 | `Devicetype-library` | `https://github.com/nstamoul/devicetype-library.git` | `master` |
-| `SHMS_nautobot_backup_repo` | `http://git.shms.local/nstam/nautobot_backup_repo.git` | `main` |
-| `SHMS_nautobot_command_mappers_repo` | `http://git.shms.local/nstam/nautobot_command_mappers_repo.git` | `main` |
-| `SHMS_nautobot_config_context_repo` | `http://git.shms.local/nstam/nautobot_config_context_repo.git` | `main` |
-| `SHMS_nautobot_intended_repo` | `http://git.shms.local/nstam/nautobot_intended_repo.git` | `main` |
-| `SHMS_nautobot_jobs_repo` | `http://git.shms.local/nstam/nautobot_jobs_repo.git` | `nautobot3-main` |
-| `SHMS_nautobot_template_repo` | `http://git.shms.local/nstam/nautobot_template_repo.git` | `main` |
+| `SHMS_nautobot_backup_repo` | `https://github.com/nstamoul/nautobot_backup_repo.git` | `main` |
+| `SHMS_nautobot_command_mappers_repo` | `https://github.com/nstamoul/nautobot_command_mappers_repo.git` | `main` |
+| `SHMS_nautobot_config_context_repo` | `https://github.com/nstamoul/nautobot_config_context_repo.git` | `main` |
+| `SHMS_nautobot_intended_repo` | `https://github.com/nstamoul/nautobot_intended_repo.git` | `main` |
+| `SHMS_nautobot_jobs_repo` | `https://github.com/nstamoul/nautobot_jobs_repo.git` | `main` |
+| `SHMS_nautobot_template_repo` | `https://github.com/nstamoul/nautobot_template_repo.git` | `main` |
 
 ### 6.4 SHMS-only local jobs
 
@@ -826,11 +826,11 @@ The earlier overlap between local copies and Git-backed copies was cleaned up. T
 
 ### 10.3 Git auth
 
-The GitRepository path currently uses internal Git over:
+The GitRepository path currently uses GitHub URLs from the supply-chain contract:
 
-- `http://git.shms.local`
+- `https://github.com/nstamoul/*`
 
-Git auth is no longer intended to rely on plain environment variables. The path was moved back to Vault-backed secret resolution after the Vault secret-provider registration problem was patched.
+Git auth is no longer intended to rely on plain environment variables. The path uses Vault-backed secret resolution through the configured GitHub secret group after the Vault secret-provider registration problem was patched.
 
 ## 11. Data Migration Status From `wyze`
 
@@ -1201,7 +1201,7 @@ If an engineer or LLM is asked to work on a backlog item, they should follow thi
 
 If a polished visual is needed beyond Mermaid, use this prompt:
 
-> Create a clean professional infrastructure architecture diagram for a self-hosted Nautobot 3.1 HA deployment called “SHMS Nautobot HA”. Show three layers: user access, HA application/data control plane, and storage. At the top, show users connecting via hostnames `sot3.shms.local`, `vault.shms.local`, `console.minio.shms.local`, and `s3.minio.shms.local`. In the middle, show two HA nodes: `nb-ha-01 (172.20.11.211)` and `nb-ha-02 (172.20.11.212)`. On each HA node show containers/icons for Traefik, HAProxy, Redis, Sentinel, Vault, and Nautobot; show Patroni/PostgreSQL on both HA nodes as the database pair. Also show `nb-etcd-witness (172.20.11.213)` with etcd and Vault. Show Keepalived VIPs floating across the two HA nodes: `172.20.11.210` for app, `172.20.11.214` for Vault, `172.20.11.215` for DB/Redis/MinIO routing. At the bottom, show four MinIO nodes: `nb-minio-01..04` with IPs `172.20.11.216-219` as a distributed MinIO cluster. Draw data-flow arrows: users to Traefik app VIP, Nautobot to PostgreSQL VIP, Nautobot to Redis VIP, Nautobot to Vault VIP, Nautobot to MinIO S3 VIP, HAProxy on infra VIP routing to MinIO console and S3. Show LDAP/AD server `172.20.11.30` on the side feeding Nautobot authentication. Show a separate internal Git service `git.shms.local` feeding Nautobot GitRepository sync. Also show a VPN control subsystem on `nb-ha-01` with `vpn-control-api` and tenant-specific outbound VPN worker containers. Style: technical, modern, crisp, no cartoon look, white background, subtle color coding by subsystem, suitable for engineering documentation.
+> Create a clean professional infrastructure architecture diagram for a self-hosted Nautobot 3.1 HA deployment called “SHMS Nautobot HA”. Show three layers: user access, HA application/data control plane, and storage. At the top, show users connecting via hostnames `sot3.shms.local`, `vault.shms.local`, `console.minio.shms.local`, and `s3.minio.shms.local`. In the middle, show two HA nodes: `nb-ha-01 (172.20.11.211)` and `nb-ha-02 (172.20.11.212)`. On each HA node show containers/icons for Traefik, HAProxy, Redis, Sentinel, Vault, and Nautobot; show Patroni/PostgreSQL on both HA nodes as the database pair. Also show `nb-etcd-witness (172.20.11.213)` with etcd and Vault. Show Keepalived VIPs floating across the two HA nodes: `172.20.11.210` for app, `172.20.11.214` for Vault, `172.20.11.215` for DB/Redis/MinIO routing. At the bottom, show four MinIO nodes: `nb-minio-01..04` with IPs `172.20.11.216-219` as a distributed MinIO cluster. Draw data-flow arrows: users to Traefik app VIP, Nautobot to PostgreSQL VIP, Nautobot to Redis VIP, Nautobot to Vault VIP, Nautobot to MinIO S3 VIP, HAProxy on infra VIP routing to MinIO console and S3. Show LDAP/AD server `172.20.11.30` on the side feeding Nautobot authentication. Show GitHub-backed GitRepository sync through the SHMS supply-chain contract and Vault-backed GitHub credentials. Also show a VPN control subsystem on `nb-ha-01` with `vpn-control-api` and tenant-specific outbound VPN worker containers. Style: technical, modern, crisp, no cartoon look, white background, subtle color coding by subsystem, suitable for engineering documentation.
 
 ## 20. Final Notes
 

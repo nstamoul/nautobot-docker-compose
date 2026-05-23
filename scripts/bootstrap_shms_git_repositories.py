@@ -35,35 +35,11 @@ SECRET_DEFS = {
             "mount_point": "kv",
         },
     },
-    "NSTAM_GITLAB_HCKV_TOKEN": {
-        "provider": "hashicorp-vault",
-        "parameters": {
-            "key": "token",
-            "path": "NSTAM_GITLAB_HCKV_TOKEN",
-            "vault": "default",
-            "kv_version": "v2",
-            "mount_point": "kv",
-        },
-    },
-    "NSTAM_GITLAB_HCKV_USERNAME": {
-        "provider": "hashicorp-vault",
-        "parameters": {
-            "key": "username",
-            "path": "NSTAM_GITLAB_HCKV_TOKEN",
-            "vault": "default",
-            "kv_version": "v2",
-            "mount_point": "kv",
-        },
-    },
 }
 
 GROUP_DEFS = {
     "NSTAM_GITHUB_HCKV_TOKEN": [
         ("HTTP(S)", "token", "NSTAM_GITHUB_HCKV_TOKEN"),
-    ],
-    "NSTAM_GITLAB_HCKV_TOKEN": [
-        ("HTTP(S)", "token", "NSTAM_GITLAB_HCKV_TOKEN"),
-        ("HTTP(S)", "username", "NSTAM_GITLAB_HCKV_USERNAME"),
     ],
 }
 
@@ -79,50 +55,50 @@ REPO_DEFS = [
     {
         "name": "SHMS_nautobot_backup_repo",
         "slug": "shms_nautobot_backup_repo",
-        "remote_url": "http://git.shms.local/nstam/nautobot_backup_repo.git",
+        "remote_url": "https://github.com/nstamoul/nautobot_backup_repo.git",
         "branch": "main",
         "provided_contents": ["nautobot_golden_config.backupconfigs"],
-        "secrets_group": "NSTAM_GITLAB_HCKV_TOKEN",
+        "secrets_group": "NSTAM_GITHUB_HCKV_TOKEN",
     },
     {
         "name": "SHMS_nautobot_command_mappers_repo",
         "slug": "shms_nautobot_command_mappers_repo",
-        "remote_url": "http://git.shms.local/nstam/nautobot_command_mappers_repo.git",
+        "remote_url": "https://github.com/nstamoul/nautobot_command_mappers_repo.git",
         "branch": "main",
         "provided_contents": ["nautobot_device_onboarding.onboarding_command_mappers"],
-        "secrets_group": "NSTAM_GITLAB_HCKV_TOKEN",
+        "secrets_group": "NSTAM_GITHUB_HCKV_TOKEN",
     },
     {
         "name": "SHMS_nautobot_config_context_repo",
         "slug": "shms_nautobot_config_context_repo",
-        "remote_url": "http://git.shms.local/nstam/nautobot_config_context_repo.git",
+        "remote_url": "https://github.com/nstamoul/nautobot_config_context_repo.git",
         "branch": "main",
         "provided_contents": ["extras.configcontext", "extras.configcontextschema"],
-        "secrets_group": "NSTAM_GITLAB_HCKV_TOKEN",
+        "secrets_group": "NSTAM_GITHUB_HCKV_TOKEN",
     },
     {
         "name": "SHMS_nautobot_intended_repo",
         "slug": "shms_nautobot_intended_repo",
-        "remote_url": "http://git.shms.local/nstam/nautobot_intended_repo.git",
+        "remote_url": "https://github.com/nstamoul/nautobot_intended_repo.git",
         "branch": "main",
         "provided_contents": ["nautobot_golden_config.intendedconfigs"],
-        "secrets_group": "NSTAM_GITLAB_HCKV_TOKEN",
+        "secrets_group": "NSTAM_GITHUB_HCKV_TOKEN",
     },
     {
         "name": "SHMS_nautobot_jobs_repo",
         "slug": "shms_nautobot_jobs_repo",
-        "remote_url": "http://git.shms.local/nstam/nautobot_jobs_repo.git",
-        "branch": "nautobot3-main",
+        "remote_url": "https://github.com/nstamoul/nautobot_jobs_repo.git",
+        "branch": "main",
         "provided_contents": ["extras.job"],
-        "secrets_group": "NSTAM_GITLAB_HCKV_TOKEN",
+        "secrets_group": "NSTAM_GITHUB_HCKV_TOKEN",
     },
     {
         "name": "SHMS_nautobot_template_repo",
         "slug": "shms_nautobot_template_repo",
-        "remote_url": "http://git.shms.local/nstam/nautobot_template_repo.git",
+        "remote_url": "https://github.com/nstamoul/nautobot_template_repo.git",
         "branch": "main",
         "provided_contents": ["nautobot_golden_config.jinjatemplate"],
-        "secrets_group": "NSTAM_GITLAB_HCKV_TOKEN",
+        "secrets_group": "NSTAM_GITHUB_HCKV_TOKEN",
     },
 ]
 
