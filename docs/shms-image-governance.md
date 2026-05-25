@@ -27,7 +27,7 @@ The `nautobot_apps_repo` Dockerfile differs from the old `shms-nautobot` one by 
 
 ## The three images
 
-Every CI run builds all three images together (monorepo approach):
+The app repo publishes three images:
 
 | Image | Purpose |
 |-------|---------|
@@ -35,7 +35,12 @@ Every CI run builds all three images together (monorepo approach):
 | `shms-vpn` | Per-tenant WireGuard/OpenVPN sidecar |
 | `shms-vpn-control-api` | REST API that manages tenant VPN stacks |
 
-They are always tagged and promoted together so all three are always in sync.
+The default release path builds and promotes all three together, which keeps the
+Nautobot app, VPN appliance, and VPN control API on the same release tag. For
+small changes, the GitHub Actions manual dispatch supports selecting only the
+affected image. Promotion supports the same component selector so an app-only
+change can update only `SHMS_NAUTOBOT_IMAGE` without rebuilding or restarting
+the VPN components.
 
 ---
 
@@ -61,9 +66,10 @@ This means `docker compose up` on a production node will always pull the exact s
 Defined in `nautobot_apps_repo/.github/workflows/ci.yml`.
 
 **Triggers:**
-- Every `push` and `pull_request` → runs tests only
-- `workflow_dispatch` with `image_tag` input → runs tests then builds and pushes all three images
-- Git tag push → same as dispatch
+- Every `push` and `pull_request` -> runs tests only
+- `workflow_dispatch` with `image_tag` input -> runs tests then builds and
+  pushes the selected images
+- Git tag push -> builds and pushes all three images
 
 **Tag format:** CI names images `<image-repo>:<tag>` where `<tag>` is the value you supply at dispatch (e.g. `main-a5efb51`). Convention is `<branch>-<short-sha>`.
 
@@ -71,46 +77,59 @@ Defined in `nautobot_apps_repo/.github/workflows/ci.yml`.
 
 ## Promoting an image to production
 
-"Promote" means: resolve the current digest for a given tag on GHCR, update `.env` on the production node, and restart the affected containers.
+"Promote" means: resolve the current digest for a given tag on GHCR, update the
+image pins on the production nodes, pull the pinned images, and restart the
+affected containers.
 
-### With invoke (from `/opt/nautobot` on either node)
-
-```bash
-invoke promote --tag main-a5efb51
-```
-
-This:
-1. Calls `gh api` to resolve the digest for each of the three images at that tag
-2. Shows you the resolved digests and asks for confirmation
-3. Writes `SHMS_NAUTOBOT_IMAGE`, `SHMS_VPN_IMAGE`, and `SHMS_VPN_CONTROL_API_IMAGE` to `environments/.env`
-4. Runs `docker compose up -d` for the app stack (nautobot + celery)
-5. Runs `docker compose up -d vpn-control-api` for the VPN control stack
-
-To skip the confirmation prompt (e.g. in automation):
-
-```bash
-invoke promote --tag main-a5efb51 --yes
-```
-
-### With make (same location)
+### Recommended: promote from the workstation
 
 ```bash
 make promote TAG=main-a5efb51
 ```
 
+This:
+1. Calls local `gh api` to resolve selected GHCR image digests.
+2. Shows the resolved digests and asks for confirmation.
+3. SSHes to each node listed in `invoke.yml`.
+4. Writes the selected image pins to both `environments/.env` and
+   `environments/local.shms.env`.
+5. Pulls the selected images on the nodes.
+6. Restarts and health-checks only the affected stacks.
+
+The servers do not need `gh` credentials for this path. They only need normal
+SSH access from the operator machine and Docker registry pull access.
+
+Examples:
+
+```bash
+make promote TAG=main-a5efb51
+make promote TAG=main-a5efb51 COMPONENTS=nautobot
+make promote TAG=main-a5efb51 COMPONENTS=vpn-control
+make promote TAG=main-a5efb51 COMPONENTS=vpn
+```
+
+### Local single-node fallback
+
+```bash
+make promote-local TAG=main-a5efb51
+```
+
+This runs `invoke promote` on the current node. It requires `gh` auth on that
+node and should not be the normal production path.
+
 ### Prerequisites
 
-- `gh` CLI must be authenticated (`gh auth status`)
+- `gh` CLI must be authenticated on the operator workstation (`gh auth status`)
 - `invoke` must be installed (`sudo apt-get install -y python3-invoke`)
-- `invoke.yml` must exist in `/opt/nautobot/` (gitignored, node-specific — see below)
+- `invoke.yml` must exist in the compose repo checkout with the HA node list
 
 ---
 
-## invoke.yml — per-node configuration
+## invoke.yml configuration
 
-`invoke.yml` is gitignored because it contains node-specific values. Each node needs its own copy at `/opt/nautobot/invoke.yml`.
+`invoke.yml` is gitignored because it contains node/operator-specific values.
+For workstation-driven promotion it must include the production node list:
 
-**nb-ha-01** (`/opt/nautobot/invoke.yml`):
 ```yaml
 ---
 nautobot_docker_compose:
@@ -119,20 +138,13 @@ nautobot_docker_compose:
   compose_dir: "environments"
   compose_files:
     - "docker-compose.shms-app.yml"
+  nodes:
+    - nb-ha-01
+    - nb-ha-02
 ```
 
-**nb-ha-02** (`/opt/nautobot/invoke.yml`):
-```yaml
----
-nautobot_docker_compose:
-  project_name: "environments"
-  node_name: "nb-ha-02"
-  compose_dir: "environments"
-  compose_files:
-    - "docker-compose.shms-app.yml"
-```
-
-`node_name` is used by `vpn_control_compose()` to inject `VPN_NODE_NAME` when starting the VPN control stack.
+`node_name` is used by the local single-node fallback to inject
+`VPN_NODE_NAME` when starting the VPN control stack.
 
 ---
 
@@ -141,31 +153,37 @@ nautobot_docker_compose:
 Yes, it is feasible. The pattern would be:
 
 1. CI builds images on `workflow_dispatch` (as today)
-2. An additional CI job SSHes to nb-ha-01 and nb-ha-02 and runs `invoke promote --tag <tag> --yes`
+2. An additional CI job resolves the built image digests
+3. The job SSHes to nb-ha-01 and nb-ha-02 and writes those digest pins
 
 This requires:
 - A deploy SSH key stored as a GitHub Actions secret
-- The `gh` CLI authenticated on the nodes (already is), or the digest passed directly from CI
+- Docker registry pull access on the nodes
+- Passing digests from CI to the node update step; do not require `gh` on the
+  servers
 
 **Trade-offs:**
 
 | Approach | Pro | Con |
 |----------|-----|-----|
 | Manual promote (current) | Explicit control, easy rollback, zero infra change needed | Requires human action after CI passes |
-| Auto-deploy on dispatch tag | Fully automated, same `promote` command | Needs deploy key secret in GitHub; a bad image goes live before you review |
+| Auto-deploy on dispatch tag | Fully automated after the build | Needs deploy key secret in GitHub; a bad image goes live before you review |
 | Auto-deploy on git tag | Explicit promotion signal via `git tag` | Slightly more ceremony; tags are harder to clean up |
 
-The `promote --yes` flag already supports the scripted path. To add CI auto-deploy later, only a GitHub Actions step + SSH secret is needed — no code changes required.
+The current recommendation is manual workstation promotion with `make promote`.
+CI auto-deploy should be added only if you want GitHub Actions to become the
+deployment authority as well as the build authority.
 
 ---
 
 ## Available invoke tasks
 
-Run `invoke --list` from `/opt/nautobot` on either node.
+Run `invoke --list` from the compose repo checkout.
 
 | Task | Description |
 |------|-------------|
-| `promote --tag <tag>` | Promote a CI-built tag to production |
+| `promote --tag <tag> [--components ...]` | Promote a CI-built tag on the current node |
+| `promote-nodes --tag <tag> [--components ...]` | Promote a CI-built tag to all configured nodes from the workstation |
 | `images [--tag <tag>]` | Show pinned vs running vs available digests |
 | `start` | Start nautobot + celery stack |
 | `stop` | Stop nautobot + celery stack |

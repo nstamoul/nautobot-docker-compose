@@ -13,8 +13,24 @@ GHCR_ORG = "ghcr.io/nstamoul/nautobot_apps_repo"
 IMAGE_NAUTOBOT = f"{GHCR_ORG}/shms-nautobot"
 IMAGE_VPN = f"{GHCR_ORG}/shms-vpn"
 IMAGE_VPN_CONTROL_API = f"{GHCR_ORG}/shms-vpn-control-api"
+IMAGE_COMPONENTS = {
+    "nautobot": ("SHMS_NAUTOBOT_IMAGE", IMAGE_NAUTOBOT, "shms-nautobot"),
+    "vpn": ("SHMS_VPN_IMAGE", IMAGE_VPN, "shms-vpn"),
+    "vpn-control": ("SHMS_VPN_CONTROL_API_IMAGE", IMAGE_VPN_CONTROL_API, "shms-vpn-control-api"),
+}
+COMPONENT_ALIASES = {
+    "all": "all",
+    "app": "nautobot",
+    "apps": "nautobot",
+    "nautobot": "nautobot",
+    "vpn": "vpn",
+    "vpn-api": "vpn-control",
+    "vpn-control": "vpn-control",
+    "vpn-control-api": "vpn-control",
+}
 
 ENV_FILE = COMPOSE_DIR / ".env"
+REMOTE_ENV_FILES = (".env", "local.shms.env")
 
 namespace = Collection("nautobot_docker_compose")
 namespace.configure(
@@ -105,8 +121,13 @@ def _read_env_file():
 
 def _write_env_file(env: dict):
     """Write a dict back to the .env file preserving key order."""
+    _write_env_path(ENV_FILE, env)
+
+
+def _write_env_path(env_path: Path, env: dict):
+    """Write a dict back to an env file preserving existing key order."""
     lines = []
-    existing = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
+    existing = env_path.read_text().splitlines() if env_path.exists() else []
     written = set()
     for line in existing:
         stripped = line.strip()
@@ -122,7 +143,25 @@ def _write_env_file(env: dict):
     for k, v in env.items():
         if k not in written:
             lines.append(f"{k}={v}")
-    ENV_FILE.write_text("\n".join(lines) + "\n")
+    env_path.write_text("\n".join(lines) + "\n")
+
+
+def _write_local_image_updates(updates: dict):
+    """Update selected image pins in all local production env files."""
+    for env_name in REMOTE_ENV_FILES:
+        env_path = COMPOSE_DIR / env_name
+        if not env_path.exists():
+            print(f"{env_path} missing; skipped")
+            continue
+        env = {}
+        for line in env_path.read_text().splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                key, value = stripped.split("=", 1)
+                env[key.strip()] = value.strip()
+        env.update(updates)
+        _write_env_path(env_path, env)
+        print(f"Updated {env_path}")
 
 
 def _gh_digest(package: str, tag: str) -> str:
@@ -146,17 +185,108 @@ def _pkg_name(full_image: str) -> str:
     return "/".join(parts[2:])  # drop ghcr.io/nstamoul
 
 
+def _selected_components(components: str) -> list[str]:
+    """Parse a comma-separated component selector."""
+    requested = [item.strip().lower() for item in components.split(",") if item.strip()]
+    if not requested or "all" in requested:
+        return list(IMAGE_COMPONENTS)
+
+    selected = []
+    for requested_component in requested:
+        try:
+            component = COMPONENT_ALIASES[requested_component]
+        except KeyError as exc:
+            valid = ", ".join(sorted(COMPONENT_ALIASES))
+            raise ValueError(f"Unknown component {requested_component!r}. Valid values: {valid}") from exc
+        if component != "all" and component not in selected:
+            selected.append(component)
+    return selected
+
+
+def _resolve_image_updates(tag: str, components: str) -> tuple[dict, list[str]]:
+    """Resolve GHCR digests for selected components and return env updates."""
+    selected = _selected_components(components)
+    updates = {}
+    print(f"Resolving digests for tag: {tag}")
+    print(f"Components: {', '.join(selected)}")
+    for component in selected:
+        env_key, image, label = IMAGE_COMPONENTS[component]
+        digest = _gh_digest(_pkg_name(image), tag)
+        updates[env_key] = f"{image}@{digest}"
+        print(f"  {label}: {digest}")
+    return updates, selected
+
+
 def _ssh(node: str, cmd: str, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
     """Run a shell command on a remote node via SSH."""
     return subprocess.run(["ssh", node, cmd], check=check, text=True, capture_output=capture)
 
 
 def _remote_update_env(node: str, updates: dict, compose_dir: str = "/opt/nautobot/environments"):
-    """Update image keys in .env on a remote node using sed."""
-    env_path = f"{compose_dir}/.env"
+    """Update image keys in both production env files on a remote node.
+
+    Production nodes can load image pins from both .env and local.shms.env.
+    Keeping the two files aligned prevents a later compose/deploy operation from
+    resurrecting an older image after a successful promotion.
+    """
+    script = f"""
+from pathlib import Path
+
+compose_dir = Path({compose_dir!r})
+updates = {updates!r}
+env_files = {REMOTE_ENV_FILES!r}
+
+for env_name in env_files:
+    env_path = compose_dir / env_name
+    if not env_path.exists():
+        print(f"  [{{env_name}}] missing, skipped")
+        continue
+
+    lines = env_path.read_text().splitlines()
+    written = set()
+    output = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            output.append(line)
+            continue
+        key = stripped.split("=", 1)[0].strip()
+        if key in updates:
+            output.append(f"{{key}}={{updates[key]}}")
+            written.add(key)
+        else:
+            output.append(line)
+
     for key, value in updates.items():
-        _ssh(node, f"sed -i 's|^{key}=.*|{key}={value}|' {env_path}")
-    print(f"  [{node}] .env updated")
+        if key not in written:
+            output.append(f"{{key}}={{value}}")
+
+    env_path.write_text("\\n".join(output) + "\\n")
+    print(f"  [{{env_name}}] updated")
+"""
+    _ssh(node, f"python3 - <<'PY'\n{script}PY")
+    print(f"  [{node}] image pins updated")
+
+
+def _remote_pull_app(node: str, compose_dir: str = "/opt/nautobot/environments"):
+    """Pull app stack images on a remote node before restarting."""
+    print(f"  [{node}] Pulling app stack images...")
+    _ssh(
+        node,
+        f"cd {compose_dir} && set -a && source .env && set +a && "
+        f"docker compose -f docker-compose.shms-app.yml pull nautobot celery_worker celery_beat",
+    )
+
+
+def _remote_pull_vpn_control(node: str, compose_dir: str = "/opt/nautobot/environments"):
+    """Pull vpn-control-api image on a remote node before restarting."""
+    print(f"  [{node}] Pulling vpn-control-api image...")
+    _ssh(
+        node,
+        f"cd {compose_dir} && set -a && source .env && set +a && "
+        f"VPN_NODE_NAME={node} docker compose -f docker-compose.shms-vpn.control.yml pull vpn-control-api",
+    )
 
 
 def _remote_restart_app(node: str, compose_dir: str = "/opt/nautobot/environments"):
@@ -191,41 +321,49 @@ def _remote_restart_vpn_control(node: str, compose_dir: str = "/opt/nautobot/env
     )
 
 
+def _remote_wait_healthy(node: str, container_name: str, timeout_seconds: int = 180):
+    """Wait for a remote container to report healthy, or just running if no healthcheck exists."""
+    print(f"  [{node}] Waiting for {container_name} to become healthy...")
+    _ssh(
+        node,
+        f"""timeout {timeout_seconds} bash -lc '
+while true; do
+  status="$(docker inspect -f '{{{{.State.Status}}}}' {container_name} 2>/dev/null || true)"
+  health="$(docker inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{end}}}}' {container_name} 2>/dev/null || true)"
+  if [ "$health" = "healthy" ] || {{ [ -z "$health" ] && [ "$status" = "running" ]; }}; then
+    exit 0
+  fi
+  if [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
+    docker logs --tail 80 {container_name} || true
+    exit 1
+  fi
+  sleep 5
+done
+'""",
+    )
+
+
 # ------------------------------------------------------------------------------
 # PROMOTE
 # ------------------------------------------------------------------------------
 @task(
     help={
         "tag": "Image tag to promote (e.g. main-a5efb51). Required.",
+        "components": "Comma-separated components to promote: all, nautobot/app, vpn, vpn-control.",
         "yes": "Skip confirmation prompt.",
     }
 )
-def promote(context, tag, yes=False):
+def promote(context, tag, components="all", yes=False):
     """Promote a CI-built image tag to production by updating .env and restarting the stack.
 
-    Fetches digests from GHCR via `gh api`, updates environments/.env, then
-    runs `docker compose up -d` for both the app stack and vpn-control-api.
+    Fetches selected digests from GHCR via `gh api`, updates environments/.env,
+    then restarts the affected local stacks.
 
     Example:
         invoke promote --tag main-a5efb51
+        invoke promote --tag main-a5efb51 --components nautobot
     """
-    print(f"Resolving digests for tag: {tag}")
-
-    nautobot_pkg = _pkg_name(IMAGE_NAUTOBOT)
-    vpn_pkg = _pkg_name(IMAGE_VPN)
-    vpn_api_pkg = _pkg_name(IMAGE_VPN_CONTROL_API)
-
-    nautobot_digest = _gh_digest(nautobot_pkg, tag)
-    vpn_digest = _gh_digest(vpn_pkg, tag)
-    vpn_api_digest = _gh_digest(vpn_api_pkg, tag)
-
-    nautobot_ref = f"{IMAGE_NAUTOBOT}@{nautobot_digest}"
-    vpn_ref = f"{IMAGE_VPN}@{vpn_digest}"
-    vpn_api_ref = f"{IMAGE_VPN_CONTROL_API}@{vpn_api_digest}"
-
-    print(f"  shms-nautobot:        {nautobot_digest}")
-    print(f"  shms-vpn:             {vpn_digest}")
-    print(f"  shms-vpn-control-api: {vpn_api_digest}")
+    updates, selected = _resolve_image_updates(tag, components)
 
     if not yes:
         confirm = input("\nPromote these images? [y/N] ").strip().lower()
@@ -233,40 +371,43 @@ def promote(context, tag, yes=False):
             print("Aborted.")
             return
 
-    env = _read_env_file()
-    env["SHMS_NAUTOBOT_IMAGE"] = nautobot_ref
-    env["SHMS_VPN_IMAGE"] = vpn_ref
-    env["SHMS_VPN_CONTROL_API_IMAGE"] = vpn_api_ref
-    _write_env_file(env)
-    print(f"Updated {ENV_FILE}")
+    _write_local_image_updates(updates)
 
-    print("\nRestarting app stack...")
-    docker_compose(context, "up -d")
+    if "nautobot" in selected:
+        print("\nRestarting app stack...")
+        docker_compose(context, "up -d")
 
-    print("\nRestarting vpn-control-api...")
-    vpn_control_compose(context, "up -d vpn-control-api")
+    if "vpn-control" in selected:
+        print("\nRestarting vpn-control-api...")
+        vpn_control_compose(context, "up -d vpn-control-api")
 
-    print(f"\nPromotion to {tag} complete.")
+    if selected == ["vpn"]:
+        print("\nUpdated VPN image pin. Existing tenant VPN containers are not restarted automatically.")
+
+    print(f"\nPromotion to {tag} complete for: {', '.join(selected)}.")
 
 
 @task(
     help={
         "tag": "Image tag to promote (e.g. main-a5efb51). Required.",
+        "components": "Comma-separated components to promote: all, nautobot/app, vpn, vpn-control.",
         "yes": "Skip confirmation prompt.",
     }
 )
-def promote_nodes(context, tag, yes=False):
+def promote_nodes(context, tag, components="all", yes=False):
     """Promote a CI-built image tag to all production nodes from this machine.
 
     Resolves digests via local `gh api`, then SSHes to each node listed under
-    nautobot_docker_compose.nodes in invoke.yml to update environments/.env and
-    restart both the app stack and vpn-control-api.
+    nautobot_docker_compose.nodes in invoke.yml to update the remote image pins,
+    pull the pinned images, and restart both the app stack and vpn-control-api.
+    The servers do not need GitHub CLI credentials for this task.
 
     Running services are detected per-node so a service that is intentionally
     not running (e.g. celery_beat on nb-ha-02) is never accidentally started.
 
     Example:
         invoke promote-nodes --tag main-a5efb51
+        invoke promote-nodes --tag main-a5efb51 --components nautobot
     """
     cfg = context.nautobot_docker_compose
     try:
@@ -278,18 +419,7 @@ def promote_nodes(context, tag, yes=False):
         print("nodes list in invoke.yml is empty.")
         return
 
-    print(f"Resolving digests for tag: {tag}")
-    nautobot_digest = _gh_digest(_pkg_name(IMAGE_NAUTOBOT), tag)
-    vpn_digest = _gh_digest(_pkg_name(IMAGE_VPN), tag)
-    vpn_api_digest = _gh_digest(_pkg_name(IMAGE_VPN_CONTROL_API), tag)
-
-    nautobot_ref = f"{IMAGE_NAUTOBOT}@{nautobot_digest}"
-    vpn_ref = f"{IMAGE_VPN}@{vpn_digest}"
-    vpn_api_ref = f"{IMAGE_VPN_CONTROL_API}@{vpn_api_digest}"
-
-    print(f"  shms-nautobot:        {nautobot_digest}")
-    print(f"  shms-vpn:             {vpn_digest}")
-    print(f"  shms-vpn-control-api: {vpn_api_digest}")
+    updates, selected = _resolve_image_updates(tag, components)
     print(f"\nTarget nodes: {', '.join(nodes)}")
 
     if not yes:
@@ -298,19 +428,21 @@ def promote_nodes(context, tag, yes=False):
             print("Aborted.")
             return
 
-    updates = {
-        "SHMS_NAUTOBOT_IMAGE": nautobot_ref,
-        "SHMS_VPN_IMAGE": vpn_ref,
-        "SHMS_VPN_CONTROL_API_IMAGE": vpn_api_ref,
-    }
-
     for node in nodes:
         print(f"\n--- {node} ---")
         _remote_update_env(node, updates)
-        _remote_restart_app(node)
-        _remote_restart_vpn_control(node)
+        if "nautobot" in selected:
+            _remote_pull_app(node)
+            _remote_restart_app(node)
+            _remote_wait_healthy(node, "nautobot")
+        if "vpn-control" in selected:
+            _remote_pull_vpn_control(node)
+            _remote_restart_vpn_control(node)
+            _remote_wait_healthy(node, "vpn-control-api")
+        if selected == ["vpn"]:
+            print(f"  [{node}] Updated VPN image pin. Existing tenant VPN containers were not restarted.")
 
-    print(f"\nPromotion of {tag} complete on: {', '.join(nodes)}")
+    print(f"\nPromotion of {tag} complete on {', '.join(nodes)} for: {', '.join(selected)}")
 
 
 @task(

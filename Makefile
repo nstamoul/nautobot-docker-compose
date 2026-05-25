@@ -5,18 +5,22 @@
 # Usage:
 #   make help
 #   make promote TAG=main-a5efb51
+#   make promote TAG=main-a5efb51 COMPONENTS=nautobot
 #   make start
 #   make logs
 
 INVOKE := invoke
+COMPONENTS ?= all
 
 .PHONY: help
 help:
 	@echo "SHMS Nautobot Stack"
 	@echo ""
 	@echo "IMAGE MANAGEMENT:"
-	@echo "  make promote-nodes TAG=<tag>  - Promote to ALL nodes from this machine (recommended)"
-	@echo "  make promote TAG=<tag>        - Promote on THIS node only"
+	@echo "  make promote TAG=<tag>        - Promote to ALL nodes from this machine (recommended)"
+	@echo "  make promote TAG=<tag> COMPONENTS=nautobot|vpn|vpn-control|all"
+	@echo "  make promote-nodes TAG=<tag>  - Alias for promote"
+	@echo "  make promote-local TAG=<tag>  - Promote on THIS node only; requires gh auth here"
 	@echo "  make images                   - Show pinned vs running image digests"
 	@echo "  make images TAG=<tag>         - Also compare with latest GHCR digests"
 	@echo ""
@@ -49,7 +53,7 @@ promote:
 		echo "Usage: make promote TAG=main-a5efb51"; \
 		exit 1; \
 	fi
-	$(INVOKE) promote --tag $(TAG)
+	$(INVOKE) promote-nodes --tag $(TAG) --components $(COMPONENTS)
 
 .PHONY: promote-nodes
 promote-nodes:
@@ -58,7 +62,16 @@ promote-nodes:
 		echo "Usage: make promote-nodes TAG=main-a5efb51"; \
 		exit 1; \
 	fi
-	$(INVOKE) promote-nodes --tag $(TAG)
+	$(INVOKE) promote-nodes --tag $(TAG) --components $(COMPONENTS)
+
+.PHONY: promote-local
+promote-local:
+	@if [ -z "$(TAG)" ]; then \
+		echo "Error: TAG is required"; \
+		echo "Usage: make promote-local TAG=main-a5efb51"; \
+		exit 1; \
+	fi
+	$(INVOKE) promote --tag $(TAG) --components $(COMPONENTS)
 
 .PHONY: images
 images:
