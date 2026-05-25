@@ -1,8 +1,6 @@
 """SHMS Nautobot Stack - Invoke Tasks."""
 
-import json
 import os
-import re
 import subprocess
 from pathlib import Path
 
@@ -148,6 +146,51 @@ def _pkg_name(full_image: str) -> str:
     return "/".join(parts[2:])  # drop ghcr.io/nstamoul
 
 
+def _ssh(node: str, cmd: str, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
+    """Run a shell command on a remote node via SSH."""
+    return subprocess.run(["ssh", node, cmd], check=check, text=True, capture_output=capture)
+
+
+def _remote_update_env(node: str, updates: dict, compose_dir: str = "/opt/nautobot/environments"):
+    """Update image keys in .env on a remote node using sed."""
+    env_path = f"{compose_dir}/.env"
+    for key, value in updates.items():
+        _ssh(node, f"sed -i 's|^{key}=.*|{key}={value}|' {env_path}")
+    print(f"  [{node}] .env updated")
+
+
+def _remote_restart_app(node: str, compose_dir: str = "/opt/nautobot/environments"):
+    """Restart only the currently-running app services on a remote node.
+
+    Detects running services first so celery_beat is never started on nodes
+    that intentionally don't run it (e.g. nb-ha-02).
+    """
+    result = _ssh(
+        node,
+        f"cd {compose_dir} && docker compose -f docker-compose.shms-app.yml ps --services --filter status=running 2>/dev/null",
+        check=False, capture=True,
+    )
+    running = result.stdout.strip().split() if result.returncode == 0 and result.stdout.strip() else []
+    services_arg = " ".join(running)
+    label = ", ".join(running) if running else "all"
+    print(f"  [{node}] Restarting app stack ({label})...")
+    _ssh(
+        node,
+        f"cd {compose_dir} && set -a && source .env && set +a && "
+        f"docker compose -f docker-compose.shms-app.yml up -d {services_arg}",
+    )
+
+
+def _remote_restart_vpn_control(node: str, compose_dir: str = "/opt/nautobot/environments"):
+    """Restart vpn-control-api on a remote node."""
+    print(f"  [{node}] Restarting vpn-control-api...")
+    _ssh(
+        node,
+        f"cd {compose_dir} && set -a && source .env && set +a && "
+        f"VPN_NODE_NAME={node} docker compose -f docker-compose.shms-vpn.control.yml up -d vpn-control-api",
+    )
+
+
 # ------------------------------------------------------------------------------
 # PROMOTE
 # ------------------------------------------------------------------------------
@@ -204,6 +247,70 @@ def promote(context, tag, yes=False):
     vpn_control_compose(context, "up -d vpn-control-api")
 
     print(f"\nPromotion to {tag} complete.")
+
+
+@task(
+    help={
+        "tag": "Image tag to promote (e.g. main-a5efb51). Required.",
+        "yes": "Skip confirmation prompt.",
+    }
+)
+def promote_nodes(context, tag, yes=False):
+    """Promote a CI-built image tag to all production nodes from this machine.
+
+    Resolves digests via local `gh api`, then SSHes to each node listed under
+    nautobot_docker_compose.nodes in invoke.yml to update environments/.env and
+    restart both the app stack and vpn-control-api.
+
+    Running services are detected per-node so a service that is intentionally
+    not running (e.g. celery_beat on nb-ha-02) is never accidentally started.
+
+    Example:
+        invoke promote-nodes --tag main-a5efb51
+    """
+    cfg = context.nautobot_docker_compose
+    try:
+        nodes = list(cfg.nodes)
+    except AttributeError:
+        print("No nodes configured. Add 'nodes: [nb-ha-01, nb-ha-02]' to invoke.yml.")
+        return
+    if not nodes:
+        print("nodes list in invoke.yml is empty.")
+        return
+
+    print(f"Resolving digests for tag: {tag}")
+    nautobot_digest = _gh_digest(_pkg_name(IMAGE_NAUTOBOT), tag)
+    vpn_digest = _gh_digest(_pkg_name(IMAGE_VPN), tag)
+    vpn_api_digest = _gh_digest(_pkg_name(IMAGE_VPN_CONTROL_API), tag)
+
+    nautobot_ref = f"{IMAGE_NAUTOBOT}@{nautobot_digest}"
+    vpn_ref = f"{IMAGE_VPN}@{vpn_digest}"
+    vpn_api_ref = f"{IMAGE_VPN_CONTROL_API}@{vpn_api_digest}"
+
+    print(f"  shms-nautobot:        {nautobot_digest}")
+    print(f"  shms-vpn:             {vpn_digest}")
+    print(f"  shms-vpn-control-api: {vpn_api_digest}")
+    print(f"\nTarget nodes: {', '.join(nodes)}")
+
+    if not yes:
+        confirm = input("\nPromote to all nodes? [y/N] ").strip().lower()
+        if confirm not in ("y", "yes"):
+            print("Aborted.")
+            return
+
+    updates = {
+        "SHMS_NAUTOBOT_IMAGE": nautobot_ref,
+        "SHMS_VPN_IMAGE": vpn_ref,
+        "SHMS_VPN_CONTROL_API_IMAGE": vpn_api_ref,
+    }
+
+    for node in nodes:
+        print(f"\n--- {node} ---")
+        _remote_update_env(node, updates)
+        _remote_restart_app(node)
+        _remote_restart_vpn_control(node)
+
+    print(f"\nPromotion of {tag} complete on: {', '.join(nodes)}")
 
 
 @task(

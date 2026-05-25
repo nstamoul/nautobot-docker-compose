@@ -15,9 +15,10 @@ help:
 	@echo "SHMS Nautobot Stack"
 	@echo ""
 	@echo "IMAGE MANAGEMENT:"
-	@echo "  make promote TAG=<tag>   - Promote CI-built images to production"
-	@echo "  make images              - Show pinned vs running image digests"
-	@echo "  make images TAG=<tag>    - Also compare with latest GHCR digests"
+	@echo "  make promote-nodes TAG=<tag>  - Promote to ALL nodes from this machine (recommended)"
+	@echo "  make promote TAG=<tag>        - Promote on THIS node only"
+	@echo "  make images                   - Show pinned vs running image digests"
+	@echo "  make images TAG=<tag>         - Also compare with latest GHCR digests"
 	@echo ""
 	@echo "STACK CONTROL:"
 	@echo "  make start               - Start nautobot/celery stack"
@@ -49,6 +50,15 @@ promote:
 		exit 1; \
 	fi
 	$(INVOKE) promote --tag $(TAG)
+
+.PHONY: promote-nodes
+promote-nodes:
+	@if [ -z "$(TAG)" ]; then \
+		echo "Error: TAG is required"; \
+		echo "Usage: make promote-nodes TAG=main-a5efb51"; \
+		exit 1; \
+	fi
+	$(INVOKE) promote-nodes --tag $(TAG)
 
 .PHONY: images
 images:
