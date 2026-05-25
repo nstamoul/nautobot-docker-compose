@@ -1,67 +1,40 @@
-"""Development Tasks."""
+"""SHMS Nautobot Stack - Invoke Tasks."""
 
-from time import sleep
+import json
 import os
-import toml
+import re
+import subprocess
+from pathlib import Path
+
 from invoke import Collection, task as invoke_task
 
+PROJECT_ROOT = Path(__file__).parent
+COMPOSE_DIR = PROJECT_ROOT / "environments"
 
-def is_truthy(arg):
-    """Convert "truthy" strings into Booleans.
+GHCR_ORG = "ghcr.io/nstamoul/nautobot_apps_repo"
+IMAGE_NAUTOBOT = f"{GHCR_ORG}/shms-nautobot"
+IMAGE_VPN = f"{GHCR_ORG}/shms-vpn"
+IMAGE_VPN_CONTROL_API = f"{GHCR_ORG}/shms-vpn-control-api"
 
-    Examples:
-        >>> is_truthy('yes')
-        True
-    Args:
-        arg (str): Truthy string (True values are y, yes, t, true, on and 1; false values are n, no,
-        f, false, off and 0. Raises ValueError if val is anything else.
-    """
-    if isinstance(arg, bool):
-        return arg
+ENV_FILE = COMPOSE_DIR / ".env"
 
-    val = str(arg).lower()
-    if val in ("y", "yes", "t", "true", "on", "1"):
-        return True
-    elif val in ("n", "no", "f", "false", "off", "0"):
-        return False
-    else:
-        raise ValueError(f"Invalid truthy value: `{arg}`")
-
-
-# Use pyinvoke configuration for default values, see http://docs.pyinvoke.org/en/stable/concepts/configuration.html
-# Variables may be overwritten in invoke.yml or by the environment variables INVOKE_NAUTOBOT_xxx
 namespace = Collection("nautobot_docker_compose")
 namespace.configure(
     {
         "nautobot_docker_compose": {
-            "project_name": "nautobot_docker_compose",
-            "python_ver": "3.12",
-            "local": False,
-            "use_django_extensions": True,
-            "compose_dir": os.path.join(os.path.dirname(__file__), "environments/"),
-            "compose_files": [
-                "docker-compose.postgres.yml",
-                "docker-compose.base.yml",
-                "docker-compose.local.yml",
-            ],
+            "project_name": "environments",
+            "node_name": "nb-ha-01",
+            "compose_dir": str(COMPOSE_DIR),
+            "compose_files": ["docker-compose.shms-app.yml"],
         }
     }
 )
 
-with open("pyproject.toml", "r", encoding="utf8") as pyproject:
-    parsed_toml = toml.load(pyproject)
-
-try:
-    NAUTOBOT_VERSION = parsed_toml["tool"]["poetry"]["dependencies"]["nautobot"]["version"]
-except TypeError:
-    NAUTOBOT_VERSION = parsed_toml["tool"]["poetry"]["dependencies"]["nautobot"]
-
 
 def task(function=None, *args, **kwargs):  # pylint: disable=keyword-arg-before-vararg
-    """Task decorator to override the default Invoke task decorator."""
+    """Task decorator that also registers the task in the namespace."""
 
     def task_wrapper(function=None):
-        """Wrap invoke.task to add the task to the namespace as well."""
         if args or kwargs:
             task_func = invoke_task(*args, **kwargs)(function)
         else:
@@ -70,223 +43,304 @@ def task(function=None, *args, **kwargs):  # pylint: disable=keyword-arg-before-
         return task_func
 
     if function:
-        # The decorator was called with no arguments
         return task_wrapper(function)
-    # The decorator was called with arguments
     return task_wrapper
 
 
-def docker_compose(context, command, **kwargs):
-    """Run a specific docker-compose command with all appropriate parameters and environment.
+def _base_compose_cmd(context):
+    cfg = context.nautobot_docker_compose
+    cmd = (
+        f"docker compose"
+        f" --project-name {cfg.project_name}"
+        f' --project-directory "{cfg.compose_dir}"'
+    )
+    for f in cfg.compose_files:
+        cmd += f' -f "{cfg.compose_dir}/{f}"'
+    return cmd
 
-    Args:
-        context (obj): Used to run specific commands
-        command (str): Command string to append to the "docker-compose ..." command, such as "build", "up", etc.
-        **kwargs: Passed through to the context.run() call.
-    """
-    compose_env = {
-        "PYTHON_VER": context.nautobot_docker_compose.python_ver,
-        "NAUTOBOT_VERSION": NAUTOBOT_VERSION,
-    }
-    compose_command = f'docker compose --project-name {context.nautobot_docker_compose.project_name} --project-directory "{context.nautobot_docker_compose.compose_dir}"'
-    for compose_file in context.nautobot_docker_compose.compose_files:
-        compose_file_path = os.path.join(
-            context.nautobot_docker_compose.compose_dir, compose_file
-        )
-        compose_command += f' -f "{compose_file_path}"'
-    compose_command += f" {command}"
-    print(f'Running docker compose command "{command}"')
-    return context.run(compose_command, env=compose_env, **kwargs)
+
+def docker_compose(context, command, **kwargs):
+    """Run a docker compose command against the app stack."""
+    full_cmd = f"{_base_compose_cmd(context)} {command}"
+    print(f'Running: docker compose {command}')
+    return context.run(full_cmd, **kwargs)
+
+
+def vpn_control_compose(context, command, **kwargs):
+    """Run a docker compose command against the vpn-control-api stack."""
+    cfg = context.nautobot_docker_compose
+    node_name = cfg.node_name
+    full_cmd = (
+        f"docker compose"
+        f" --project-name {cfg.project_name}"
+        f' --project-directory "{cfg.compose_dir}"'
+        f' -f "{cfg.compose_dir}/docker-compose.shms-vpn.control.yml"'
+        f" {command}"
+    )
+    print(f'Running: docker compose (vpn-control) {command}')
+    env = {**os.environ, "VPN_NODE_NAME": node_name}
+    return context.run(full_cmd, env=env, **kwargs)
 
 
 def run_command(context, command, **kwargs):
-    """Run a command locally or inside the nautobot container."""
-    if is_truthy(context.nautobot_docker_compose.local):
-        context.run(command)
+    """Run a management command inside the nautobot container."""
+    results = docker_compose(context, "ps --services --filter status=running", hide="out")
+    if "nautobot" in results.stdout:
+        docker_compose(context, f"exec nautobot {command}", pty=True)
     else:
-        # Check if nautobot is running, no need to start another nautobot container to run a command
-        docker_compose_status = "ps --services --filter status=running"
-        results = docker_compose(context, docker_compose_status, hide="out")
-        if "nautobot" in results.stdout:
-            compose_command = f"exec nautobot {command}"
-        else:
-            compose_command = f"run --entrypoint '{command}' nautobot"
+        docker_compose(context, f"run --rm nautobot {command}", pty=True)
 
-        docker_compose(context, compose_command, pty=True)
+
+def _read_env_file():
+    """Parse the .env file into a dict."""
+    env = {}
+    if not ENV_FILE.exists():
+        return env
+    for line in ENV_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        env[k.strip()] = v.strip()
+    return env
+
+
+def _write_env_file(env: dict):
+    """Write a dict back to the .env file preserving key order."""
+    lines = []
+    existing = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
+    written = set()
+    for line in existing:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            lines.append(line)
+            continue
+        k = stripped.split("=", 1)[0].strip()
+        if k in env:
+            lines.append(f"{k}={env[k]}")
+            written.add(k)
+        else:
+            lines.append(line)
+    for k, v in env.items():
+        if k not in written:
+            lines.append(f"{k}={v}")
+    ENV_FILE.write_text("\n".join(lines) + "\n")
+
+
+def _gh_digest(package: str, tag: str) -> str:
+    """Resolve a GHCR digest for the given package and tag via gh api."""
+    pkg_encoded = package.replace("/", "%2F")
+    result = subprocess.run(
+        ["gh", "api", f"/users/nstamoul/packages/container/{pkg_encoded}/versions",
+         "--jq", f'.[] | select(.metadata.container.tags[] == "{tag}") | .name'],
+        capture_output=True, text=True, check=True,
+    )
+    digest = result.stdout.strip()
+    if not digest:
+        raise ValueError(f"No digest found for {package}:{tag}")
+    return digest
+
+
+def _pkg_name(full_image: str) -> str:
+    """Extract the package path after the registry owner for gh api calls."""
+    # ghcr.io/nstamoul/nautobot_apps_repo/shms-nautobot -> nautobot_apps_repo%2Fshms-nautobot
+    parts = full_image.split("/")
+    return "/".join(parts[2:])  # drop ghcr.io/nstamoul
 
 
 # ------------------------------------------------------------------------------
-# BUILD
+# PROMOTE
 # ------------------------------------------------------------------------------
 @task(
     help={
-        "force_rm": "Always remove intermediate containers",
-        "cache": "Whether to use Docker's cache when building the image (defaults to enabled)",
+        "tag": "Image tag to promote (e.g. main-a5efb51). Required.",
+        "yes": "Skip confirmation prompt.",
     }
 )
-def build(context, force_rm=False, cache=True):
-    """Build Nautobot docker image."""
-    command = "build"
+def promote(context, tag, yes=False):
+    """Promote a CI-built image tag to production by updating .env and restarting the stack.
 
-    if not cache:
-        command += " --no-cache"
-    if force_rm:
-        command += " --force-rm"
+    Fetches digests from GHCR via `gh api`, updates environments/.env, then
+    runs `docker compose up -d` for both the app stack and vpn-control-api.
 
-    print(
-        f"Building Nautobot {NAUTOBOT_VERSION} with Python {context.nautobot_docker_compose.python_ver}..."
+    Example:
+        invoke promote --tag main-a5efb51
+    """
+    print(f"Resolving digests for tag: {tag}")
+
+    nautobot_pkg = _pkg_name(IMAGE_NAUTOBOT)
+    vpn_pkg = _pkg_name(IMAGE_VPN)
+    vpn_api_pkg = _pkg_name(IMAGE_VPN_CONTROL_API)
+
+    nautobot_digest = _gh_digest(nautobot_pkg, tag)
+    vpn_digest = _gh_digest(vpn_pkg, tag)
+    vpn_api_digest = _gh_digest(vpn_api_pkg, tag)
+
+    nautobot_ref = f"{IMAGE_NAUTOBOT}@{nautobot_digest}"
+    vpn_ref = f"{IMAGE_VPN}@{vpn_digest}"
+    vpn_api_ref = f"{IMAGE_VPN_CONTROL_API}@{vpn_api_digest}"
+
+    print(f"  shms-nautobot:        {nautobot_digest}")
+    print(f"  shms-vpn:             {vpn_digest}")
+    print(f"  shms-vpn-control-api: {vpn_api_digest}")
+
+    if not yes:
+        confirm = input("\nPromote these images? [y/N] ").strip().lower()
+        if confirm not in ("y", "yes"):
+            print("Aborted.")
+            return
+
+    env = _read_env_file()
+    env["SHMS_NAUTOBOT_IMAGE"] = nautobot_ref
+    env["SHMS_VPN_IMAGE"] = vpn_ref
+    env["SHMS_VPN_CONTROL_API_IMAGE"] = vpn_api_ref
+    _write_env_file(env)
+    print(f"Updated {ENV_FILE}")
+
+    print("\nRestarting app stack...")
+    docker_compose(context, "up -d")
+
+    print("\nRestarting vpn-control-api...")
+    vpn_control_compose(context, "up -d vpn-control-api")
+
+    print(f"\nPromotion to {tag} complete.")
+
+
+@task(
+    help={"tag": "Optional tag to check. Defaults to latest two versions."}
+)
+def images(context, tag=None):
+    """List current image versions: what is pinned in .env vs what is running."""
+    env = _read_env_file()
+    print("\n--- Pinned in .env ---")
+    for k in ("SHMS_NAUTOBOT_IMAGE", "SHMS_VPN_IMAGE", "SHMS_VPN_CONTROL_API_IMAGE"):
+        print(f"  {k}={env.get(k, '(not set)')}")
+
+    print("\n--- Running containers ---")
+    context.run(
+        "docker inspect nautobot celery_worker celery_beat vpn-control-api "
+        "--format '{{.Name}}  {{slice .Config.Image 0 90}}  ({{.State.Status}})' 2>/dev/null || true"
     )
-    docker_compose(context, command)
+
+    if tag:
+        print(f"\n--- Latest digests for tag {tag} on GHCR ---")
+        for pkg, label in [
+            (_pkg_name(IMAGE_NAUTOBOT), "shms-nautobot"),
+            (_pkg_name(IMAGE_VPN), "shms-vpn"),
+            (_pkg_name(IMAGE_VPN_CONTROL_API), "shms-vpn-control-api"),
+        ]:
+            try:
+                digest = _gh_digest(pkg, tag)
+                print(f"  {label}: {digest}")
+            except Exception as exc:  # pylint: disable=broad-except
+                print(f"  {label}: ERROR - {exc}")
 
 
 # ------------------------------------------------------------------------------
-# START / STOP / DEBUG
+# START / STOP / RESTART
 # ------------------------------------------------------------------------------
-@task
-def debug(context):
-    """Start Nautobot and its dependencies in debug mode."""
-    print("Starting Nautobot in debug mode...")
-    docker_compose(context, "up")
-
-
 @task
 def start(context):
-    """Start Nautobot and its dependencies in detached mode."""
-    print("Starting Nautobot in detached mode...")
-    docker_compose(context, "up --detach")
-
-
-@task
-def restart(context):
-    """Gracefully restart all containers."""
-    print("Restarting Nautobot...")
-    docker_compose(context, "restart")
+    """Start the Nautobot app stack (nautobot, celery_worker, celery_beat)."""
+    print("Starting SHMS Nautobot stack...")
+    docker_compose(context, "up -d")
 
 
 @task
 def stop(context):
-    """Stop Nautobot and its dependencies."""
-    print("Stopping Nautobot...")
+    """Stop the Nautobot app stack."""
+    print("Stopping SHMS Nautobot stack...")
     docker_compose(context, "down")
 
 
 @task
-def destroy(context):
-    """Destroy all containers and volumes."""
-    print("Destroying Nautobot...")
-    docker_compose(context, "down --volumes")
-
-
-# ------------------------------------------------------------------------------
-# ACTIONS
-# ------------------------------------------------------------------------------
-@task
-def nbshell(context):
-    """Launch an interactive nbshell session."""
-    if context.nautobot_docker_compose.use_django_extensions:
-        command = "nautobot-server shell_plus"
-    else:
-        command = "nautobot-server nbshell"
-
-    run_command(context, command, pty=True)
+def restart(context):
+    """Gracefully restart the Nautobot app stack."""
+    print("Restarting SHMS Nautobot stack...")
+    docker_compose(context, "restart")
 
 
 @task
-def cli(context):
-    """Launch a bash shell inside the running Nautobot container."""
-    run_command(context, "bash")
+def recreate(context):
+    """Force-recreate all app stack containers (picks up .env changes without promote)."""
+    print("Recreating SHMS Nautobot stack...")
+    docker_compose(context, "up -d --force-recreate")
 
 
-@task(
-    help={
-        "user": "name of the superuser to create (default: admin)",
-    }
-)
-def createsuperuser(context, user="admin"):
-    """Create a new Nautobot superuser account (default: "admin"), will prompt for password."""
-    command = f"nautobot-server createsuperuser --username {user}"
+@task
+def ps(context):
+    """Show container status for all managed stacks."""
+    print("--- App stack ---")
+    docker_compose(context, "ps")
+    print("\n--- VPN control API ---")
+    vpn_control_compose(context, "ps")
 
-    run_command(context, command)
+
+@task
+def logs(context, follow=False, service="nautobot celery_worker"):
+    """Tail logs for the app stack (default: nautobot and celery_worker)."""
+    cmd = f"logs {'--follow ' if follow else ''}{service}"
+    docker_compose(context, cmd, pty=follow)
+
+
+# ------------------------------------------------------------------------------
+# VPN CONTROL API
+# ------------------------------------------------------------------------------
+@task
+def vpn_control_start(context):
+    """Start the vpn-control-api container."""
+    print("Starting vpn-control-api...")
+    vpn_control_compose(context, "up -d vpn-control-api")
+
+
+@task
+def vpn_control_stop(context):
+    """Stop the vpn-control-api container."""
+    print("Stopping vpn-control-api...")
+    vpn_control_compose(context, "down")
+
+
+@task
+def vpn_control_restart(context):
+    """Restart the vpn-control-api container."""
+    print("Restarting vpn-control-api...")
+    vpn_control_compose(context, "restart vpn-control-api")
+
+
+@task
+def vpn_control_logs(context, follow=False):
+    """Tail vpn-control-api logs."""
+    vpn_control_compose(context, f"logs {'--follow ' if follow else ''}vpn-control-api", pty=follow)
+
+
+# ------------------------------------------------------------------------------
+# NAUTOBOT MANAGEMENT COMMANDS
+# ------------------------------------------------------------------------------
+@task
+def post_upgrade(context):
+    """Run nautobot-server post_upgrade (migrate, collectstatic, etc.)."""
+    run_command(context, "nautobot-server post_upgrade")
 
 
 @task
 def migrate(context):
-    """Perform migrate operation in Django."""
-    command = "nautobot-server migrate"
-
-    run_command(context, command)
+    """Run nautobot-server migrate."""
+    run_command(context, "nautobot-server migrate")
 
 
 @task
-def post_upgrade(context):
-    """
-    Nautobot common post-upgrade operations using a single entrypoint.
-
-    This will run the following management commands with default settings, in order:
-
-    - migrate
-    - trace_paths
-    - collectstatic
-    - remove_stale_contenttypes
-    - clearsessions
-    - invalidate all
-    """
-    command = "nautobot-server post_upgrade"
-
-    run_command(context, command)
+def nbshell(context):
+    """Open an interactive nautobot-server shell_plus session."""
+    run_command(context, "nautobot-server shell_plus", pty=True)
 
 
 @task
-def import_nautobot_data(context):
-    """Import nautobot_data.json."""
-    # This task expects to be run in the docker container for now
-    context.nautobot_docker_compose.local = False
-    copy_cmd = f"docker cp nautobot_data.json {context.nautobot_docker_compose.project_name}_nautobot_1:/tmp/nautobot_data.json"
-    import_cmd = "nautobot-server import_nautobot_json /tmp/nautobot_data.json 2.10.4"
-    print("Starting Nautobot")
-    start(context)
-    print("Copying Nautobot data to container")
-    context.run(copy_cmd)
-    print("Starting Import")
-    print(import_cmd)
-    run_command(context, import_cmd)
+def cli(context):
+    """Open a bash shell inside the running nautobot container."""
+    run_command(context, "bash", pty=True)
 
 
-@task
-def db_export(context):
-    """Export the database from the dev environment to nautobot.sql."""
-    docker_compose(context, "up -d db")
-    sleep(2)  # Wait for the database to be ready
-
-    print("Exporting the database as an SQL dump...")
-    if "docker-compose.mysql.yml" in context.nautobot_docker_compose.compose_files:
-        export_cmd = 'exec db sh -c "mysqldump -u \${NAUTOBOT_DB_USER} -p \${NAUTOBOT_DB_PASSWORD} \${NAUTOBOT_DB_NAME} nautobot > /tmp/nautobot.sql"'  # noqa: W605 pylint: disable=anomalous-backslash-in-string
-        copy_cmd = f"docker cp {context.nautobot_docker_compose.project_name}-db-1:/tmp/nautobot.sql nautobot.sql"
-    else:
-        export_cmd = 'exec db sh -c "pg_dump -h localhost -d \${NAUTOBOT_DB_NAME} -U \${NAUTOBOT_DB_USER} > /tmp/nautobot.sql"'  # noqa: W605 pylint: disable=anomalous-backslash-in-string
-        copy_cmd = f"docker cp {context.nautobot_docker_compose.project_name}-db-1:/tmp/nautobot.sql nautobot.sql"
-    docker_compose(context, export_cmd, pty=True)
-    print("Copying the SQL Dump locally...")
-    context.run(copy_cmd)
-
-
-@task
-def db_import(context):
-    """Install the backup of Nautobot db into development environment."""
-    print("Importing Database into Development...\n")
-
-    print("Starting Postgres for DB import...\n")
-    docker_compose(context, "up -d db")
-    sleep(2)
-
-    print("Copying DB Dump to DB container...\n")
-    if "docker-compose.mysql.yml" in context.nautobot_docker_compose.compose_files:
-        copy_cmd = f"docker cp nautobot.sql {context.nautobot_docker_compose.project_name}-db-1:/tmp/nautobot.sql"
-        import_cmd = 'exec db sh -c "mysql -u \${NAUTOBOT_DB_USER} -p \${NAUTOBOT_DB_PASSWORD} < /tmp/nautobot.sql"'  # noqa: W605 pylint: disable=anomalous-backslash-in-string
-    else:
-        copy_cmd = f"docker cp nautobot.sql {context.nautobot_docker_compose.project_name}-db-1:/tmp/nautobot.sql"
-        import_cmd = 'exec db sh -c "psql -h localhost -U \${NAUTOBOT_DB_USER} < /tmp/nautobot.sql"'  # noqa: W605 pylint: disable=anomalous-backslash-in-string
-    context.run(copy_cmd)
-
-    print("Importing DB...\n")
-    docker_compose(context, import_cmd, pty=True)
+@task(help={"user": "Superuser username (default: admin)"})
+def createsuperuser(context, user="admin"):
+    """Create a Nautobot superuser account."""
+    run_command(context, f"nautobot-server createsuperuser --username {user}", pty=True)
