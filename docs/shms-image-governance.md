@@ -6,14 +6,20 @@ How container images are built, stored, promoted to production, and what each pi
 
 ## Image repositories
 
-There are two GitHub repos that contain Dockerfiles for the SHMS stack:
+The SHMS stack is now built from component-specific GitHub repositories. All
+GitHub Actions builds run on the `otepiconfig` self-hosted runner label set.
 
-| Repo | Status | CI runner | GHCR path |
-|------|--------|-----------|-----------|
-| `nstamoul/shms-nautobot` | Legacy | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-<name>` |
-| `nstamoul/nautobot_apps_repo` | **Active** | `ubuntu-latest` | `ghcr.io/nstamoul/nautobot_apps_repo/shms-<name>` |
+| Repo                               | Status      | CI runner               | GHCR path                                           |
+| ---------------------------------- | ----------- | ----------------------- | --------------------------------------------------- |
+| `nstamoul/nautobot_apps_repo`      | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/nautobot_apps_repo/shms-nautobot` |
+| `nstamoul/shms-vpn`                | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-vpn`                         |
+| `nstamoul/shms-vpn-control-api`    | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-vpn-control-api`             |
+| `nstamoul/nautobot_worker`         | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/nautobot_worker`                  |
+| `nstamoul/shms-nautobot`           | Audit target | otepiconfig self-hosted | To be reconciled before becoming canonical          |
 
-The `shms-nautobot` repo was the original. All SHMS Nautobot apps, plugins, VPN code, and the Dockerfiles were later consolidated into `nautobot_apps_repo`, which is the active build source.
+The `shms-nautobot` repo name is the preferred long-term name for the Nautobot
+runtime image, but `nautobot_apps_repo` remains the current active publish
+source until the two trees are fully reconciled.
 
 Neither repo is a "base image" for the other. Both Dockerfiles start from the upstream Nautobot image:
 
@@ -21,26 +27,30 @@ Neither repo is a "base image" for the other. Both Dockerfiles start from the up
 FROM ghcr.io/nautobot/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}
 ```
 
-The `nautobot_apps_repo` Dockerfile differs from the old `shms-nautobot` one by only two lines (a path rename from `plugins/` to `patches/` for the UI plugin overlay).
+The VPN appliance and VPN control API are separate deployables and no longer
+build from `nautobot_apps_repo`.
 
 ---
 
-## The three images
+## Runtime images
 
-The app repo publishes three images:
+Production consumes three HA-side images:
 
-| Image | Purpose |
-|-------|---------|
-| `shms-nautobot` | Nautobot app + celery workers |
-| `shms-vpn` | Per-tenant WireGuard/OpenVPN sidecar |
+| Image                    | Purpose                                 |
+| ------------------------ | --------------------------------------- |
+| `shms-nautobot`        | Nautobot app + celery workers           |
+| `shms-vpn`             | Per-tenant VPN appliance sidecar        |
 | `shms-vpn-control-api` | REST API that manages tenant VPN stacks |
 
-The default release path builds and promotes all three together, which keeps the
-Nautobot app, VPN appliance, and VPN control API on the same release tag. For
-small changes, the GitHub Actions manual dispatch supports selecting only the
-affected image. Promotion supports the same component selector so an app-only
-change can update only `SHMS_NAUTOBOT_IMAGE` without rebuilding or restarting
-the VPN components.
+The remote worker image is separate and is the only image that is expected to
+support ARM devices:
+
+| Image              | Purpose                                             |
+| ------------------ | --------------------------------------------------- |
+| `nautobot_worker`  | Remote worker runtime for RPi, macOS, Windows, etc. |
+
+VPN appliance and VPN control API images are amd64-only. Do not build those for
+RPi or macOS remote workers.
 
 ---
 
@@ -63,13 +73,15 @@ This means `docker compose up` on a production node will always pull the exact s
 
 ## CI build pipeline
 
-Defined in `nautobot_apps_repo/.github/workflows/ci.yml`.
+Defined in each component repository under `.github/workflows/`.
 
 **Triggers:**
+
 - Every `push` and `pull_request` -> runs tests only
 - `workflow_dispatch` with `image_tag` input -> runs tests then builds and
-  pushes the selected images
-- Git tag push -> builds and pushes all three images
+  pushes that repository's image
+- Git tag push -> builds and pushes that repository's image where the workflow
+  supports tag builds
 
 **Tag format:** CI names images `<image-repo>:<tag>` where `<tag>` is the value you supply at dispatch (e.g. `main-a5efb51`). Convention is `<branch>-<short-sha>`.
 
@@ -88,6 +100,7 @@ make promote TAG=main-a5efb51
 ```
 
 This:
+
 1. Calls local `gh api` to resolve selected GHCR image digests.
 2. Shows the resolved digests and asks for confirmation.
 3. SSHes to each node listed in `invoke.yml`.
@@ -157,6 +170,7 @@ Yes, it is feasible. The pattern would be:
 3. The job SSHes to nb-ha-01 and nb-ha-02 and writes those digest pins
 
 This requires:
+
 - A deploy SSH key stored as a GitHub Actions secret
 - Docker registry pull access on the nodes
 - Passing digests from CI to the node update step; do not require `gh` on the
@@ -164,11 +178,11 @@ This requires:
 
 **Trade-offs:**
 
-| Approach | Pro | Con |
-|----------|-----|-----|
-| Manual promote (current) | Explicit control, easy rollback, zero infra change needed | Requires human action after CI passes |
-| Auto-deploy on dispatch tag | Fully automated after the build | Needs deploy key secret in GitHub; a bad image goes live before you review |
-| Auto-deploy on git tag | Explicit promotion signal via `git tag` | Slightly more ceremony; tags are harder to clean up |
+| Approach                    | Pro                                                       | Con                                                                        |
+| --------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Manual promote (current)    | Explicit control, easy rollback, zero infra change needed | Requires human action after CI passes                                      |
+| Auto-deploy on dispatch tag | Fully automated after the build                           | Needs deploy key secret in GitHub; a bad image goes live before you review |
+| Auto-deploy on git tag      | Explicit promotion signal via `git tag`                 | Slightly more ceremony; tags are harder to clean up                        |
 
 The current recommendation is manual workstation promotion with `make promote`.
 CI auto-deploy should be added only if you want GitHub Actions to become the
@@ -180,25 +194,25 @@ deployment authority as well as the build authority.
 
 Run `invoke --list` from the compose repo checkout.
 
-| Task | Description |
-|------|-------------|
-| `promote --tag <tag> [--components ...]` | Promote a CI-built tag on the current node |
+| Task                                             | Description                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| `promote --tag <tag> [--components ...]`       | Promote a CI-built tag on the current node                          |
 | `promote-nodes --tag <tag> [--components ...]` | Promote a CI-built tag to all configured nodes from the workstation |
-| `images [--tag <tag>]` | Show pinned vs running vs available digests |
-| `start` | Start nautobot + celery stack |
-| `stop` | Stop nautobot + celery stack |
-| `restart` | Restart nautobot + celery stack |
-| `recreate` | Force-recreate (picks up `.env` changes without promote) |
-| `ps` | Container status for all stacks |
-| `logs [--follow]` | Tail nautobot + celery_worker logs |
-| `vpn-control-start` | Start vpn-control-api |
-| `vpn-control-stop` | Stop vpn-control-api |
-| `vpn-control-restart` | Restart vpn-control-api |
-| `vpn-control-logs [--follow]` | Tail vpn-control-api logs |
-| `post-upgrade` | Run `nautobot-server post_upgrade` |
-| `migrate` | Run `nautobot-server migrate` |
-| `nbshell` | Open `nautobot-server shell_plus` |
-| `cli` | Open bash in the nautobot container |
-| `createsuperuser` | Create admin superuser |
+| `images [--tag <tag>]`                         | Show pinned vs running vs available digests                         |
+| `start`                                        | Start nautobot + celery stack                                       |
+| `stop`                                         | Stop nautobot + celery stack                                        |
+| `restart`                                      | Restart nautobot + celery stack                                     |
+| `recreate`                                     | Force-recreate (picks up `.env` changes without promote)          |
+| `ps`                                           | Container status for all stacks                                     |
+| `logs [--follow]`                              | Tail nautobot + celery_worker logs                                  |
+| `vpn-control-start`                            | Start vpn-control-api                                               |
+| `vpn-control-stop`                             | Stop vpn-control-api                                                |
+| `vpn-control-restart`                          | Restart vpn-control-api                                             |
+| `vpn-control-logs [--follow]`                  | Tail vpn-control-api logs                                           |
+| `post-upgrade`                                 | Run `nautobot-server post_upgrade`                                |
+| `migrate`                                      | Run `nautobot-server migrate`                                     |
+| `nbshell`                                      | Open `nautobot-server shell_plus`                                 |
+| `cli`                                          | Open bash in the nautobot container                                 |
+| `createsuperuser`                              | Create admin superuser                                              |
 
 All tasks also have `make` equivalents (e.g. `make promote TAG=main-a5efb51`).
