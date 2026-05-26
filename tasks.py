@@ -296,12 +296,28 @@ def _remote_restart_app(node: str, compose_dir: str = "/opt/nautobot/environment
     Detects running services first so celery_beat is never started on nodes
     that intentionally don't run it (e.g. nb-ha-02).
     """
+    configured_result = _ssh(
+        node,
+        f"cd {compose_dir} && docker compose -f docker-compose.shms-app.yml config --services 2>/dev/null",
+        check=False, capture=True,
+    )
+    configured_services = (
+        configured_result.stdout.strip().split()
+        if configured_result.returncode == 0 and configured_result.stdout.strip()
+        else []
+    )
+    configured_set = set(configured_services)
+
     result = _ssh(
         node,
         f"cd {compose_dir} && docker compose -f docker-compose.shms-app.yml ps --services --filter status=running 2>/dev/null",
         check=False, capture=True,
     )
-    running = result.stdout.strip().split() if result.returncode == 0 and result.stdout.strip() else []
+    discovered_running = result.stdout.strip().split() if result.returncode == 0 and result.stdout.strip() else []
+    running = [service for service in configured_services if service in discovered_running]
+    ignored = [service for service in discovered_running if service not in configured_set]
+    if ignored:
+        print(f"  [{node}] Ignoring non-app services from shared compose project: {', '.join(ignored)}")
     services_arg = " ".join(running)
     label = ", ".join(running) if running else "all"
     print(f"  [{node}] Restarting app stack ({label})...")
