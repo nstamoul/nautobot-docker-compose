@@ -10,6 +10,6 @@ jobs:
       - name: "Check out repository code"
         uses: "actions/checkout@v2"
       - name: "Install yamllint"
-        run: "python3 -m pip install yamllint"
+        run: "python3 -m pip install --user --no-cache-dir yamllint"
       - name: "Run yamllint"
         run: "yamllint ."
