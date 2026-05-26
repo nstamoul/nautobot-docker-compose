@@ -341,23 +341,40 @@ def _remote_restart_vpn_control(node: str, compose_dir: str = "/opt/nautobot/env
 def _remote_wait_healthy(node: str, container_name: str, timeout_seconds: int = 180):
     """Wait for a remote container to report healthy, or just running if no healthcheck exists."""
     print(f"  [{node}] Waiting for {container_name} to become healthy...")
-    _ssh(
-        node,
-        f"""timeout {timeout_seconds} bash -lc '
-while true; do
-  status="$(docker inspect -f '{{{{.State.Status}}}}' {container_name} 2>/dev/null || true)"
-  health="$(docker inspect -f '{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{end}}}}' {container_name} 2>/dev/null || true)"
-  if [ "$health" = "healthy" ] || {{ [ -z "$health" ] && [ "$status" = "running" ]; }}; then
-    exit 0
-  fi
-  if [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
-    docker logs --tail 80 {container_name} || true
-    exit 1
-  fi
-  sleep 5
-done
-'""",
+    script = f"""
+import subprocess
+import sys
+import time
+
+container = {container_name!r}
+deadline = time.time() + {timeout_seconds}
+
+
+def inspect(fmt):
+    result = subprocess.run(
+        ["docker", "inspect", "-f", fmt, container],
+        capture_output=True,
+        text=True,
+        check=False,
     )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+while True:
+    status = inspect("{{{{.State.Status}}}}")
+    health = inspect("{{{{if .State.Health}}}}{{{{.State.Health.Status}}}}{{{{end}}}}")
+    if health == "healthy" or (not health and status == "running"):
+        sys.exit(0)
+    if status in ("exited", "dead"):
+        subprocess.run(["docker", "logs", "--tail", "80", container], check=False)
+        sys.exit(1)
+    if time.time() >= deadline:
+        print(f"Timed out waiting for {{container}}: status={{status or '-'}} health={{health or '-'}}", file=sys.stderr)
+        subprocess.run(["docker", "logs", "--tail", "80", container], check=False)
+        sys.exit(124)
+    time.sleep(5)
+"""
+    _ssh(node, f"python3 - <<'PY'\n{script}PY")
 
 
 # ------------------------------------------------------------------------------
