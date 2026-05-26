@@ -9,17 +9,16 @@ How container images are built, stored, promoted to production, and what each pi
 The SHMS stack is now built from component-specific GitHub repositories. All
 GitHub Actions builds run on the `otepiconfig` self-hosted runner label set.
 
-| Repo                               | Status      | CI runner               | GHCR path                                           |
-| ---------------------------------- | ----------- | ----------------------- | --------------------------------------------------- |
-| `nstamoul/nautobot_apps_repo`      | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/nautobot_apps_repo/shms-nautobot` |
-| `nstamoul/shms-vpn`                | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-vpn`                         |
-| `nstamoul/shms-vpn-control-api`    | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-vpn-control-api`             |
-| `nstamoul/nautobot_worker`         | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/nautobot_worker`                  |
-| `nstamoul/shms-nautobot`           | Audit target | otepiconfig self-hosted | To be reconciled before becoming canonical          |
+| Repo                               | Status      | CI runner               | GHCR path                               |
+| ---------------------------------- | ----------- | ----------------------- | --------------------------------------- |
+| `nstamoul/shms-nautobot`           | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-nautobot`        |
+| `nstamoul/shms-vpn`                | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-vpn`             |
+| `nstamoul/shms-vpn-control-api`    | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/shms-vpn-control-api` |
+| `nstamoul/nautobot_worker`         | **Active**  | otepiconfig self-hosted | `ghcr.io/nstamoul/nautobot_worker`      |
+| `nstamoul/nautobot_apps_repo`      | Legacy      | none for production     | Do not promote from this package        |
 
-The `shms-nautobot` repo name is the preferred long-term name for the Nautobot
-runtime image, but `nautobot_apps_repo` remains the current active publish
-source until the two trees are fully reconciled.
+`shms-nautobot` is the canonical Nautobot runtime image source. The old
+`nautobot_apps_repo` tree is retained only as migration reference.
 
 Neither repo is a "base image" for the other. Both Dockerfiles start from the upstream Nautobot image:
 
@@ -27,8 +26,8 @@ Neither repo is a "base image" for the other. Both Dockerfiles start from the up
 FROM ghcr.io/nautobot/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}
 ```
 
-The VPN appliance and VPN control API are separate deployables and no longer
-build from `nautobot_apps_repo`.
+The VPN appliance and VPN control API are separate deployables and do not build
+from the Nautobot image repository.
 
 ---
 
@@ -64,7 +63,7 @@ RPi or macOS remote workers.
 
 ```
 # .env on production node:
-SHMS_NAUTOBOT_IMAGE=ghcr.io/nstamoul/nautobot_apps_repo/shms-nautobot@sha256:e901ec7e...
+SHMS_NAUTOBOT_IMAGE=ghcr.io/nstamoul/shms-nautobot@sha256:e901ec7e...
 ```
 
 This means `docker compose up` on a production node will always pull the exact same image, even if someone pushes a new image under the same tag.

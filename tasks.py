@@ -9,10 +9,10 @@ from invoke import Collection, task as invoke_task
 PROJECT_ROOT = Path(__file__).parent
 COMPOSE_DIR = PROJECT_ROOT / "environments"
 
-GHCR_ORG = "ghcr.io/nstamoul/nautobot_apps_repo"
-IMAGE_NAUTOBOT = f"{GHCR_ORG}/shms-nautobot"
-IMAGE_VPN = f"{GHCR_ORG}/shms-vpn"
-IMAGE_VPN_CONTROL_API = f"{GHCR_ORG}/shms-vpn-control-api"
+GHCR_OWNER = "ghcr.io/nstamoul"
+IMAGE_NAUTOBOT = f"{GHCR_OWNER}/shms-nautobot"
+IMAGE_VPN = f"{GHCR_OWNER}/shms-vpn"
+IMAGE_VPN_CONTROL_API = f"{GHCR_OWNER}/shms-vpn-control-api"
 IMAGE_COMPONENTS = {
     "nautobot": ("SHMS_NAUTOBOT_IMAGE", IMAGE_NAUTOBOT, "shms-nautobot"),
     "vpn": ("SHMS_VPN_IMAGE", IMAGE_VPN, "shms-vpn"),
@@ -180,7 +180,8 @@ def _gh_digest(package: str, tag: str) -> str:
 
 def _pkg_name(full_image: str) -> str:
     """Extract the package path after the registry owner for gh api calls."""
-    # ghcr.io/nstamoul/nautobot_apps_repo/shms-nautobot -> nautobot_apps_repo%2Fshms-nautobot
+    # ghcr.io/nstamoul/shms-nautobot -> shms-nautobot
+    # ghcr.io/nstamoul/nested/name -> nested/name
     parts = full_image.split("/")
     return "/".join(parts[2:])  # drop ghcr.io/nstamoul
 
