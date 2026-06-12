@@ -63,6 +63,11 @@ def _ensure_list(value):
     return [value]
 
 
+def _first_list_item(value, default=""):
+    values = _ensure_list(value)
+    return values[0] if values else default
+
+
 def _to_int(value, default=0):
     if value in (None, ""):
         return default
@@ -87,6 +92,16 @@ class NormalizedOrderLine:
     quantity_backordered: int = 0
     promised_delivery_date: date | None = None
     estimated_delivery_date: date | None = None
+    serial_number: str = ""
+    mac_address: str = ""
+    instance_number: str = ""
+    ship_set: str = ""
+    carrier: str = ""
+    tracking_number: str = ""
+    tracking_url: str = ""
+    proof_of_delivery_url: str = ""
+    actual_delivery_date: date | None = None
+    estimated_ship_date: date | None = None
     raw_payload: dict[str, Any] = field(default_factory=dict)
 
 
@@ -271,6 +286,12 @@ class CiscoPayloadNormalizer:
             quantity_fulfilled = _to_int(
                 _first_value(raw_line, ("shippingAttributes", "shippedQty"), ("quantityFulfilled",), default=0)
             )
+            serial_attributes = _ensure_list(raw_line.get("serialNumberAttributes"))
+            first_serial_attributes = serial_attributes[0] if serial_attributes else {}
+            shipping_attributes = raw_line.get("shippingAttributes") or {}
+            freight_attributes = shipping_attributes.get("freightAttributes") or {}
+            tracking_attributes = _ensure_list(freight_attributes.get("trackingAttributes"))
+            first_tracking_attributes = tracking_attributes[0] if tracking_attributes else {}
             lines.append(
                 NormalizedOrderLine(
                     line_key=line_key,
@@ -307,6 +328,51 @@ class CiscoPayloadNormalizer:
                             ("delivery", "estimatedDate"),
                             default=None,
                         )
+                    ),
+                    serial_number=str(_first_list_item(first_serial_attributes.get("serialNumber")) or ""),
+                    mac_address=str(_first_list_item(first_serial_attributes.get("macAddresses")) or ""),
+                    instance_number=str(first_serial_attributes.get("instanceNumber") or ""),
+                    ship_set=str(
+                        _first_value(
+                            raw_line,
+                            ("shippingAttributes", "shippingGroupNo"),
+                            ("shippingAttributes", "shipSet"),
+                            ("shipSet",),
+                            default="",
+                        )
+                        or ""
+                    ),
+                    carrier=str(
+                        _first_value(
+                            freight_attributes,
+                            ("freightPreferredCarrier",),
+                            ("carrier",),
+                            ("carrierName",),
+                            default="",
+                        )
+                        or ""
+                    ),
+                    tracking_number=str(
+                        _first_value(first_tracking_attributes, ("trackingNumber",), ("number",), default="") or ""
+                    ),
+                    tracking_url=str(
+                        _first_value(first_tracking_attributes, ("freightCarrierUrl",), ("trackingUrl",), default="")
+                        or ""
+                    ),
+                    proof_of_delivery_url=str(
+                        _first_value(
+                            freight_attributes,
+                            ("proofOfDeliveryURL",),
+                            ("proofOfDeliveryUrl",),
+                            default="",
+                        )
+                        or ""
+                    ),
+                    actual_delivery_date=_parse_date(
+                        _first_value(raw_line, ("shippingAttributes", "actualDeliveryDate"), default=None)
+                    ),
+                    estimated_ship_date=_parse_date(
+                        _first_value(raw_line, ("shippingAttributes", "estimatedShipDate"), default=None)
                     ),
                     raw_payload=raw_line,
                 )

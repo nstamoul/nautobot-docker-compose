@@ -337,6 +337,60 @@ class CiscoPayloadNormalizerTest(TestCase):
         self.assertEqual(snapshot.promised_delivery_date.isoformat(), "2026-05-02")
         self.assertEqual(snapshot.open_exception_count, 2)
 
+    def test_normalize_order_details_extracts_serial_and_tracking_fields(self):
+        """Detail payload should capture Cisco serial and freight tracking attributes."""
+        snapshot = self.normalizer.normalize_order_details(
+            {
+                "ciscoSalesOrderReference": {"ciscoSalesOrderId": "119745185"},
+                "lines": [
+                    {
+                        "orderLineReference": {"lineId": "server-1", "userInterfaceLineId": "1.1"},
+                        "item": {"sku": "UCSC-C240-M7SX", "description": "Cisco UCS server"},
+                        "quantity": {"measurement": 1, "unitOfMeasure": "EA"},
+                        "orderLineStatus": "CLOSED",
+                        "serialNumberAttributes": [
+                            {
+                                "serialNumber": ["WVT294200FF"],
+                                "macAddresses": ["44C20C2C319C"],
+                                "instanceNumber": "6103074542",
+                            }
+                        ],
+                        "shippingAttributes": {
+                            "shipSetStatus": "Closed",
+                            "shippingGroupNo": 1,
+                            "shippedQty": 1,
+                            "estimatedDeliveryDate": "2026-04-20",
+                            "actualDeliveryDate": "2026-04-20",
+                            "estimatedShipDate": "2026-04-14",
+                            "freightAttributes": {
+                                "freightPreferredCarrier": "SCHENKER LTL STANDARD EU1",
+                                "proofOfDeliveryURL": "https://carrier.example/pod",
+                                "trackingAttributes": [
+                                    {
+                                        "trackingNumber": "119745185/1",
+                                        "freightCarrierUrl": "https://carrier.example/track/119745185/1",
+                                    }
+                                ],
+                            },
+                        },
+                    }
+                ],
+            }
+        )
+
+        line = snapshot.lines[0]
+        self.assertEqual(line.serial_number, "WVT294200FF")
+        self.assertEqual(line.mac_address, "44C20C2C319C")
+        self.assertEqual(line.instance_number, "6103074542")
+        self.assertEqual(line.ship_set, "1")
+        self.assertEqual(line.quantity_fulfilled, 1)
+        self.assertEqual(line.carrier, "SCHENKER LTL STANDARD EU1")
+        self.assertEqual(line.tracking_number, "119745185/1")
+        self.assertEqual(line.tracking_url, "https://carrier.example/track/119745185/1")
+        self.assertEqual(line.proof_of_delivery_url, "https://carrier.example/pod")
+        self.assertEqual(line.actual_delivery_date.isoformat(), "2026-04-20")
+        self.assertEqual(line.estimated_ship_date.isoformat(), "2026-04-14")
+
 
 class CiscoOrderSynchronizerTest(TestCase):
     """Test persistence and change detection."""
@@ -389,3 +443,49 @@ class CiscoOrderSynchronizerTest(TestCase):
         order, _changes = synchronizer.sync_order_by_number("SO-9003", tracked_line_keys=["minor-1"])
 
         self.assertEqual(list(order.lines.filter(is_tracked=True).values_list("line_key", flat=True)), ["minor-1"])
+
+    def test_sync_persists_serial_and_tracking_fields(self):
+        """Synchronizer should store normalized serial and tracking values on order lines."""
+        payload = {
+            "orderNumber": "SO-9004",
+            "lines": [
+                {
+                    "lineKey": "server-1",
+                    "lineNumber": "1.1",
+                    "sku": "UCSC-C240-M7SX",
+                    "serialNumberAttributes": [
+                        {
+                            "serialNumber": ["WVT294200FF"],
+                            "macAddresses": ["44C20C2C319C"],
+                            "instanceNumber": "6103074542",
+                        }
+                    ],
+                    "shippingAttributes": {
+                        "shipSetStatus": "Closed",
+                        "shippingGroupNo": 1,
+                        "shippedQty": 1,
+                        "freightAttributes": {
+                            "freightPreferredCarrier": "SCHENKER LTL STANDARD EU1",
+                            "trackingAttributes": [
+                                {
+                                    "trackingNumber": "119745185/1",
+                                    "freightCarrierUrl": "https://carrier.example/track/119745185/1",
+                                }
+                            ],
+                        },
+                    },
+                }
+            ],
+        }
+        synchronizer = self._build_synchronizer(payload)
+
+        order, _changes = synchronizer.sync_order_by_number("SO-9004")
+
+        line = order.lines.get(line_key="server-1")
+        self.assertEqual(line.serial_number, "WVT294200FF")
+        self.assertEqual(line.mac_address, "44C20C2C319C")
+        self.assertEqual(line.instance_number, "6103074542")
+        self.assertEqual(line.ship_set, "1")
+        self.assertEqual(line.carrier, "SCHENKER LTL STANDARD EU1")
+        self.assertEqual(line.tracking_number, "119745185/1")
+        self.assertEqual(line.tracking_url, "https://carrier.example/track/119745185/1")

@@ -67,6 +67,16 @@ class CiscoOrderLine(BaseModel):
     quantity_backordered = models.PositiveIntegerField(default=0)
     promised_delivery_date = models.DateField(null=True, blank=True)
     estimated_delivery_date = models.DateField(null=True, blank=True)
+    serial_number = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    mac_address = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    instance_number = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    ship_set = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    carrier = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    tracking_number = models.CharField(max_length=CHARFIELD_MAX_LENGTH, blank=True)
+    tracking_url = models.URLField(max_length=1024, blank=True)
+    proof_of_delivery_url = models.URLField(max_length=1024, blank=True)
+    actual_delivery_date = models.DateField(null=True, blank=True)
+    estimated_ship_date = models.DateField(null=True, blank=True)
     raw_payload = models.JSONField(default=dict, blank=True)
 
     class Meta:

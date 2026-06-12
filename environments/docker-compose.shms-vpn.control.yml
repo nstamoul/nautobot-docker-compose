@@ -2,9 +2,9 @@
 services:
   vpn-control-api:
     build:
-      context: ../vpn/VPN_Control_API
+      context: "../vpn/VPN_Control_API"
     container_name: "vpn-control-api"
-    restart: unless-stopped
+    restart: "unless-stopped"
     entrypoint:
       - "uvicorn"
       - "VPN_Control_API.app:app"
@@ -30,9 +30,9 @@ services:
     volumes:
       - "../:/workspace"
       - "/opt/nautobot:/opt/nautobot:ro"
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /usr/bin/docker:/usr/bin/docker:ro
-      - /usr/libexec/docker/cli-plugins/docker-compose:/usr/libexec/docker/cli-plugins/docker-compose:ro
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/usr/bin/docker:/usr/bin/docker:ro"
+      - "/usr/libexec/docker/cli-plugins/docker-compose:/usr/libexec/docker/cli-plugins/docker-compose:ro"
     healthcheck:
       test:
         [

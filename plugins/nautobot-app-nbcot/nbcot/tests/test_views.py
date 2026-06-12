@@ -114,6 +114,16 @@ class NBCOTCustomViewTest(TestCase):
                     quantity_backordered=1,
                     promised_delivery_date=None,
                     estimated_delivery_date=None,
+                    serial_number="WVT294200FF",
+                    mac_address="44C20C2C319C",
+                    instance_number="6103074542",
+                    ship_set="1",
+                    carrier="SCHENKER LTL STANDARD EU1",
+                    tracking_number="119745185/1",
+                    tracking_url="https://carrier.example/track/119745185/1",
+                    proof_of_delivery_url="",
+                    actual_delivery_date=None,
+                    estimated_ship_date=None,
                 ),
                 SimpleNamespace(
                     line_key="minor-1",
@@ -127,6 +137,16 @@ class NBCOTCustomViewTest(TestCase):
                     quantity_backordered=1,
                     promised_delivery_date=None,
                     estimated_delivery_date=None,
+                    serial_number="",
+                    mac_address="",
+                    instance_number="",
+                    ship_set="",
+                    carrier="",
+                    tracking_number="",
+                    tracking_url="",
+                    proof_of_delivery_url="",
+                    actual_delivery_date=None,
+                    estimated_ship_date=None,
                 ),
             ],
         )
@@ -139,9 +159,14 @@ class NBCOTCustomViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "SO-7100")
         self.assertContains(response, "N9K-C93180YC-FX")
+        self.assertContains(response, "WVT294200FF")
+        self.assertContains(response, "119745185/1")
         self.assertContains(response, "CON-SNT")
         self.assertContains(response, 'data-line-filter="sku"')
         self.assertContains(response, 'data-line-sort="line"')
+        self.assertContains(response, 'data-line-action="toggle-column"')
+        self.assertContains(response, 'data-column-key="serial"')
+        self.assertContains(response, 'data-column-key="tracking"')
         self.assertFalse(models.CiscoOrder.objects.filter(order_number="SO-7100").exists())
         mock_sync_class.assert_called_once_with(environment_override="prod")
         mock_sync.preview_order_by_number.assert_called_once_with("SO-7100")
@@ -149,7 +174,16 @@ class NBCOTCustomViewTest(TestCase):
     def test_detail_view_uses_line_tree_controls_for_persisted_lines(self):
         """Saved order detail should expose the same line filtering, sorting, and tree controls."""
         fixtures.create_line(self.order, line_key="45.0", line_number="45.0", sku="HCI-MAJOR", is_tracked=True)
-        fixtures.create_line(self.order, line_key="45.1", line_number="45.1", sku="HCI-SUBMAJOR")
+        fixtures.create_line(
+            self.order,
+            line_key="45.1",
+            line_number="45.1",
+            sku="HCI-SUBMAJOR",
+            serial_number="WVT294200FF",
+            carrier="SCHENKER LTL STANDARD EU1",
+            tracking_number="119745185/1",
+            tracking_url="https://carrier.example/track/119745185/1",
+        )
         fixtures.create_line(self.order, line_key="45.1.1", line_number="45.1.1", sku="HCI-CHILD")
 
         response = self.client.get(self.order.get_absolute_url())
@@ -167,6 +201,9 @@ class NBCOTCustomViewTest(TestCase):
         self.assertContains(response, 'name="line_keys" value="45.0" checked')
         self.assertContains(response, 'name="line_keys" value="45.1"')
         self.assertContains(response, "HCI-SUBMAJOR")
+        self.assertContains(response, "WVT294200FF")
+        self.assertContains(response, "SCHENKER LTL STANDARD EU1")
+        self.assertContains(response, "119745185/1")
 
     def test_line_tracking_view_updates_selected_lines(self):
         """Saved order detail should persist the line tracking checkbox selections."""

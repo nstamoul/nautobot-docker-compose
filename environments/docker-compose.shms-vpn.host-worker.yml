@@ -3,7 +3,7 @@ services:
   celery_worker_vpn:
     image: "shms/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}"
     network_mode: "host"
-    restart: unless-stopped
+    restart: "unless-stopped"
     tty: true
     env_file:
       - "local.shms.env"

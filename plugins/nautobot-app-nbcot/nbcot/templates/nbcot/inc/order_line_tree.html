@@ -18,6 +18,10 @@
         {% if tracking_submit_label %}
             <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
         {% endif %}
+        <div class="btn-group" style="margin-left: 8px;">
+            <button type="button" class="btn btn-default btn-sm" data-line-action="toggle-column" data-column-key="serial">Serial</button>
+            <button type="button" class="btn btn-default btn-sm" data-line-action="toggle-column" data-column-key="tracking">Tracking</button>
+        </div>
         <div class="input-group input-group-sm pull-right" style="max-width: 360px;">
             <span class="input-group-addon">Filter</span>
             <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
@@ -46,6 +50,9 @@
                     <th class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="backordered" data-line-sort-type="number">Backorder</button></th>
                     <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="promised">Promised</button></th>
                     <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="estimated">Estimated</button></th>
+                    <th data-column-key="serial"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="serial">Serial</button></th>
+                    <th data-column-key="tracking"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="carrier">Carrier</button></th>
+                    <th data-column-key="tracking"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracking">Tracking</button></th>
                 </tr>
                 <tr>
                     {% if tracking_mode %}
@@ -64,6 +71,9 @@
                     <th><input type="search" class="form-control input-sm" data-line-filter="backordered"></th>
                     <th><input type="search" class="form-control input-sm" data-line-filter="promised"></th>
                     <th><input type="search" class="form-control input-sm" data-line-filter="estimated"></th>
+                    <th data-column-key="serial"><input type="search" class="form-control input-sm" data-line-filter="serial"></th>
+                    <th data-column-key="tracking"><input type="search" class="form-control input-sm" data-line-filter="carrier"></th>
+                    <th data-column-key="tracking"><input type="search" class="form-control input-sm" data-line-filter="tracking"></th>
                 </tr>
             </thead>
             <tbody>
@@ -84,6 +94,14 @@
                         data-backordered="{{ row.line.quantity_backordered|default:'0' }}"
                         data-promised="{{ row.line.promised_delivery_date|default:'' }}"
                         data-estimated="{{ row.line.estimated_delivery_date|default:'' }}"
+                        data-serial="{{ row.line.serial_number|default:'' }}"
+                        data-mac="{{ row.line.mac_address|default:'' }}"
+                        data-instance="{{ row.line.instance_number|default:'' }}"
+                        data-ship-set="{{ row.line.ship_set|default:'' }}"
+                        data-carrier="{{ row.line.carrier|default:'' }}"
+                        data-tracking="{{ row.line.tracking_number|default:'' }}"
+                        data-actual-delivery="{{ row.line.actual_delivery_date|default:'' }}"
+                        data-estimated-ship="{{ row.line.estimated_ship_date|default:'' }}"
                     >
                         {% if tracking_mode %}
                             <td>
@@ -114,10 +132,19 @@
                         <td class="text-right">{{ row.line.quantity_backordered }}</td>
                         <td>{{ row.line.promised_delivery_date|default:"-" }}</td>
                         <td>{{ row.line.estimated_delivery_date|default:"-" }}</td>
+                        <td data-column-key="serial">{{ row.line.serial_number|default:"-" }}</td>
+                        <td data-column-key="tracking">{{ row.line.carrier|default:"-" }}</td>
+                        <td data-column-key="tracking">
+                            {% if row.line.tracking_url %}
+                                <a href="{{ row.line.tracking_url }}" target="_blank" rel="noopener noreferrer">{{ row.line.tracking_number|default:row.line.tracking_url }}</a>
+                            {% else %}
+                                {{ row.line.tracking_number|default:"-" }}
+                            {% endif %}
+                        </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="12" class="text-muted">{{ empty_message|default:"No line items were returned." }}</td>
+                        <td colspan="15" class="text-muted">{{ empty_message|default:"No line items were returned." }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -163,6 +190,7 @@
             var tbody = tree.querySelector("tbody");
             var rows = Array.from(tree.querySelectorAll("[data-line-row]"));
             var collapsed = new Set();
+            var hiddenColumns = new Set();
             var sortState = {key: "line", type: "line", direction: "asc"};
 
             function childrenOf(parentId) {
@@ -313,6 +341,21 @@
                     sortState.type = button.getAttribute("data-line-sort-type") || "text";
                     sortAndRender();
                 });
+            });
+            tree.querySelectorAll("[data-line-action='toggle-column']").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    var key = button.getAttribute("data-column-key");
+                    if (hiddenColumns.has(key)) {
+                        hiddenColumns.delete(key);
+                    } else {
+                        hiddenColumns.add(key);
+                    }
+                    tree.querySelectorAll("th[data-column-key='" + key + "'], td[data-column-key='" + key + "']").forEach(function (element) {
+                        element.style.display = hiddenColumns.has(key) ? "none" : "";
+                    });
+                    button.classList.toggle("active", !hiddenColumns.has(key));
+                });
+                button.classList.add("active");
             });
             sortAndRender();
         });

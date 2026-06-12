@@ -94,8 +94,14 @@ query GetOrderDetails($input: OrderSearchInput) {
           orderLineStatus
           updatedOn
         }
+        serialNumberAttributes {
+          serialNumber
+          macAddresses
+          instanceNumber
+        }
         shippingAttributes {
           shipSetStatus
+          shippingGroupNo
           shippedQty
           estimatedDeliveryDate
           actualDeliveryDate
@@ -105,6 +111,14 @@ query GetOrderDetails($input: OrderSearchInput) {
           requestedShipDate
           recommitDate
           recommitReason
+          freightAttributes {
+            freightPreferredCarrier
+            proofOfDeliveryURL
+            trackingAttributes {
+              trackingNumber
+              freightCarrierUrl
+            }
+          }
         }
       }
     }

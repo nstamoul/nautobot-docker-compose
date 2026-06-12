@@ -1,3 +1,4 @@
+---
 x-shms-hosts: &shms-hosts
   - "sot3.shms.local:172.20.11.210"
   - "vault.shms.local:172.20.11.214"
@@ -17,13 +18,13 @@ x-shms-hosts: &shms-hosts
 services:
   vpn:
     build:
-      context: ../vpn/vpn
+      context: "../vpn/vpn"
     privileged: true
     cap_add:
-      - NET_ADMIN
+      - "NET_ADMIN"
     devices:
-      - /dev/net/tun:/dev/net/tun
-      - /dev/ppp:/dev/ppp
+      - "/dev/net/tun:/dev/net/tun"
+      - "/dev/ppp:/dev/ppp"
     env_file:
       - "local.shms.env"
       - "creds.shms.env"
@@ -71,14 +72,14 @@ services:
       - "nb-minio-03.shms.local:172.20.11.218"
       - "nb-minio-04.shms.local:172.20.11.219"
     volumes:
-      - vpn_certs:/vpn/certs
-      - ../vpn/configs:/vpn/configs:ro
-      - /opt/nautobot/certs:/opt/nautobot/certs:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - "vpn_certs:/vpn/certs"
+      - "../vpn/configs:/vpn/configs:ro"
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
     networks:
-      - default
-      - vpn_network
-    restart: unless-stopped
+      - "default"
+      - "vpn_network"
+    restart: "unless-stopped"
     labels:
       - "vpn.controlled=true"
       - "vpn.role=appliance"

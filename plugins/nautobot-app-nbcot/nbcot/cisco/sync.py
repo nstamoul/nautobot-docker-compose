@@ -126,6 +126,16 @@ class CiscoOrderSynchronizer:
             line_obj.quantity_backordered = line.quantity_backordered
             line_obj.promised_delivery_date = line.promised_delivery_date
             line_obj.estimated_delivery_date = line.estimated_delivery_date
+            line_obj.serial_number = line.serial_number
+            line_obj.mac_address = line.mac_address
+            line_obj.instance_number = line.instance_number
+            line_obj.ship_set = line.ship_set
+            line_obj.carrier = line.carrier
+            line_obj.tracking_number = line.tracking_number
+            line_obj.tracking_url = line.tracking_url
+            line_obj.proof_of_delivery_url = line.proof_of_delivery_url
+            line_obj.actual_delivery_date = line.actual_delivery_date
+            line_obj.estimated_ship_date = line.estimated_ship_date
             if tracked_line_key_set is not None:
                 line_obj.is_tracked = line.line_key in tracked_line_key_set
             line_obj.raw_payload = line.raw_payload

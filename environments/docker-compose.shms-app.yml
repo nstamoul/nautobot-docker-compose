@@ -33,7 +33,7 @@ x-nautobot-base: &nautobot-base
     - path: "creds.shms.env"
       required: false
   extra_hosts: *shms-hosts
-  restart: unless-stopped
+  restart: "unless-stopped"
   tty: true
   volumes:
     - "../jobs:/opt/nautobot/jobs"
