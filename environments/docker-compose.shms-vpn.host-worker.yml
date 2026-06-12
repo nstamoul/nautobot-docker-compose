@@ -20,6 +20,7 @@ services:
     environment:
       CUSTOMER: "${CUSTOMER:-}"
       VPN_SLOT_SLUG: "${VPN_SLOT_SLUG:-}"
+      VPN_QUEUE: "${VPN_QUEUE:-vpn}"
       NAUTOBOT_CELERY_WORKER_QUEUES: "${VPN_QUEUE:-vpn}"
       CELERY_WORKER_CONCURRENCY: "${VPN_WORKER_CONCURRENCY:-4}"
       VPN_WORKER_NAME_PREFIX: "${VPN_WORKER_NAME_PREFIX:-vpn-worker}"

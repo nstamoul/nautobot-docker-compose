@@ -32,6 +32,7 @@ services:
       USE_VAULT: "${USE_VAULT:-true}"
       VAULT_ADDR: "${VAULT_ADDR:-}"
       VAULT_TOKEN: "${VAULT_TOKEN:-}"
+      SHMS_VAULT_TOKEN_FILE: "${SHMS_VAULT_TOKEN_FILE:-/run/shms-vpn-vault/vpn-control.token}"
       VAULT_NAMESPACE: "${VAULT_NAMESPACE:-}"
       VAULT_CACERT: "${VAULT_CACERT:-/opt/nautobot/certs/vault-ca.crt}"
       HTTP_PROXY: ""
@@ -73,7 +74,22 @@ services:
       - "vpn_certs:/vpn/certs"
       - "../vpn/configs:/vpn/configs:ro"
       - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "shms_vault_agent_vpn_runtime:/run/shms-vpn-vault:ro"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    entrypoint:
+      - "/usr/bin/dumb-init"
+      - "--"
+      - "sh"
+      - "-c"
+      - >
+        token_file="$${SHMS_VAULT_TOKEN_FILE:-/run/shms-vpn-vault/vpn-control.token}";
+        if [ -z "$${VAULT_TOKEN:-}" ] && [ -s "$$token_file" ]; then
+        VAULT_TOKEN="$$(tr -d '\r\n' < "$$token_file")";
+        export VAULT_TOKEN;
+        HASHICORP_VAULT_TOKEN="$$VAULT_TOKEN";
+        export HASHICORP_VAULT_TOKEN;
+        fi;
+        exec /entrypoint.sh
     networks:
       - "default"
       - "vpn_network"
@@ -91,3 +107,5 @@ networks:
 
 volumes:
   vpn_certs: {}
+  shms_vault_agent_vpn_runtime:
+    external: true

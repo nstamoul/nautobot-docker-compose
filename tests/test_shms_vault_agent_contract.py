@@ -91,3 +91,25 @@ def test_upstream_deploy_script_no_longer_renders_static_vault_token():
     assert 'secrets["VAULT_NAUTOBOT_TOKEN"]' not in script
     assert "SHMS_VAULT_AGENT_ENABLED=true" in script
     assert "SHMS_VAULT_TOKEN_FILE=/run/shms-vault-web/nautobot.token" in script
+
+
+def test_vpn_worker_compose_exposes_queue_name_to_worker_environment():
+    for filename in ("docker-compose.shms-vpn.queue.yml", "docker-compose.shms-vpn.host-worker.yml"):
+        compose = (REPO_ROOT / "environments" / filename).read_text()
+
+        assert 'VPN_QUEUE: "${VPN_QUEUE:-vpn}"' in compose
+        assert 'NAUTOBOT_CELERY_WORKER_QUEUES: "${VPN_QUEUE:-vpn}"' in compose
+        assert "-Q ${VPN_QUEUE:-vpn}" in compose
+
+
+def test_vpn_service_compose_reads_vault_agent_token_file():
+    compose = (REPO_ROOT / "environments" / "docker-compose.shms-vpn.service.yml").read_text()
+
+    assert 'SHMS_VAULT_TOKEN_FILE: "${SHMS_VAULT_TOKEN_FILE:-/run/shms-vpn-vault/vpn-control.token}"' in compose
+    assert "shms_vault_agent_vpn_runtime:/run/shms-vpn-vault:ro" in compose
+    assert "shms_vault_agent_vpn_runtime:" in compose
+    assert "external: true" in compose
+    assert 'VAULT_TOKEN="$$(tr -d' in compose
+    assert "export VAULT_TOKEN" in compose
+    assert 'HASHICORP_VAULT_TOKEN="$$VAULT_TOKEN"' in compose
+    assert "exec /entrypoint.sh" in compose
