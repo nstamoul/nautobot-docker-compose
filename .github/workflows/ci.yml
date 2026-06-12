@@ -13,4 +13,4 @@ jobs:
       - name: "Install yamllint"
         run: "python3 -m pip install --user --no-cache-dir yamllint"
       - name: "Run yamllint"
-        run: "yamllint ."
+        run: "python3 -m yamllint ."
