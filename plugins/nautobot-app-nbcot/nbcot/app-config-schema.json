@@ -49,6 +49,10 @@
         "subscription_details_query_document": {
             "type": "string",
             "default": ""
+        },
+        "teams_webhook_url": {
+            "type": "string",
+            "default": ""
         }
     }
 }

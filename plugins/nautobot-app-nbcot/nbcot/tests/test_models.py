@@ -14,6 +14,10 @@ class CiscoOrderModelTest(TestCase):
         self.assertEqual(order.order_number, "SO-2001")
         self.assertEqual(order.status, "Submitted")
         self.assertTrue(order.is_tracked)
+        self.assertFalse(order.is_archived)
+        self.assertEqual(order.project_number, "")
+        self.assertEqual(order.notes, "")
+        self.assertEqual(order.notification_recipients, "")
         self.assertEqual(str(order), "SO-2001")
 
     def test_related_line_and_update_stringification(self):

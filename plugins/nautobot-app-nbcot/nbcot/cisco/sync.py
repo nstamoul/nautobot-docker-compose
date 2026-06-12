@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from nbcot.choices import ChangeSourceChoices, OrderUpdateTypeChoices, SyncStatusChoices
 from nbcot.models import CiscoOrder, CiscoOrderLine, CiscoOrderUpdate
+from nbcot.notifications import notify_order_changes
 
 from .client import CiscoGraphQLClient
 from .normalizers import CiscoPayloadNormalizer
@@ -69,6 +70,14 @@ class CiscoOrderSynchronizer:
             "estimated_delivery_date": order.estimated_delivery_date.isoformat() if order.estimated_delivery_date else None,
             "open_exception_count": order.open_exception_count,
         }
+        previous_line_state = {
+            line.line_key: {
+                "line_number": line.line_number,
+                "sku": line.sku,
+                "shipment_status": line.shipment_status,
+            }
+            for line in order.lines.all()
+        }
 
         order.customer_po_number = snapshot.customer_po_number
         order.environment = environment
@@ -90,7 +99,15 @@ class CiscoOrderSynchronizer:
         order.validated_save()
 
         self._sync_lines(order, snapshot.lines, tracked_line_keys=tracked_line_keys)
-        changes = self._record_changes(order, previous_state, snapshot, created=created, source=source)
+        changes = self._record_changes(
+            order,
+            previous_state,
+            previous_line_state,
+            snapshot,
+            created=created,
+            source=source,
+        )
+        notify_order_changes(order, changes)
         return order, changes
 
     def record_sync_error(self, order: CiscoOrder, error: Exception, source: str = ChangeSourceChoices.POLL):
@@ -147,7 +164,7 @@ class CiscoOrderSynchronizer:
         else:
             order.lines.all().delete()
 
-    def _record_changes(self, order, previous_state, snapshot, created, source):
+    def _record_changes(self, order, previous_state, previous_line_state, snapshot, created, source):
         updates = []
         current_state = {
             "status": snapshot.status,
@@ -220,6 +237,34 @@ class CiscoOrderSynchronizer:
                             "exceptions": snapshot.exceptions,
                         },
                     },
+                    raw_payload=snapshot.raw_payload,
+                )
+            )
+
+        shipment_changes = []
+        for line in order.lines.all():
+            previous_line = previous_line_state.get(line.line_key)
+            previous_shipment = previous_line["shipment_status"] if previous_line else ""
+            if previous_shipment == line.shipment_status:
+                continue
+            shipment_changes.append(
+                {
+                    "line_key": line.line_key,
+                    "line_number": line.line_number,
+                    "sku": line.sku,
+                    "before": previous_shipment,
+                    "after": line.shipment_status,
+                }
+            )
+
+        if shipment_changes:
+            updates.append(
+                CiscoOrderUpdate.objects.create(
+                    order=order,
+                    update_type=OrderUpdateTypeChoices.SHIPMENT_CHANGED,
+                    source=source,
+                    summary="Shipment status changed.",
+                    details={"changes": shipment_changes},
                     raw_payload=snapshot.raw_payload,
                 )
             )

@@ -22,6 +22,10 @@ class CiscoOrderViewTest(ViewTestCases.PrimaryObjectViewTestCase):
         "customer_po_number": "PO-5001",
         "account_name": "Initial Account",
         "status": "Submitted",
+        "project_number": "PRJ-5001",
+        "notes": "Initial notes",
+        "notification_recipients": "ops@example.com",
+        "notification_teams_webhook_url": "https://teams.example/webhook",
         "is_tracked": True,
     }
     update_data = {
@@ -29,6 +33,10 @@ class CiscoOrderViewTest(ViewTestCases.PrimaryObjectViewTestCase):
         "customer_po_number": "PO-5001",
         "account_name": "Updated Account",
         "status": "Shipped",
+        "project_number": "PRJ-5001",
+        "notes": "Updated notes",
+        "notification_recipients": "ops@example.com",
+        "notification_teams_webhook_url": "https://teams.example/webhook",
         "is_tracked": True,
     }
 
@@ -164,9 +172,11 @@ class NBCOTCustomViewTest(TestCase):
         self.assertContains(response, "CON-SNT")
         self.assertContains(response, 'data-line-filter="sku"')
         self.assertContains(response, 'data-line-sort="line"')
-        self.assertContains(response, 'data-line-action="toggle-column"')
+        self.assertContains(response, 'data-line-action="open-column-config"')
+        self.assertContains(response, "Table Configuration")
         self.assertContains(response, 'data-column-key="serial"')
         self.assertContains(response, 'data-column-key="tracking"')
+        self.assertNotContains(response, 'data-line-action="toggle-column"')
         self.assertFalse(models.CiscoOrder.objects.filter(order_number="SO-7100").exists())
         mock_sync_class.assert_called_once_with(environment_override="prod")
         mock_sync.preview_order_by_number.assert_called_once_with("SO-7100")
@@ -197,6 +207,11 @@ class NBCOTCustomViewTest(TestCase):
         self.assertContains(response, 'data-line-action="collapse-all"')
         self.assertContains(response, 'data-line-action="select-visible"')
         self.assertContains(response, 'data-line-action="clear-visible"')
+        self.assertContains(response, 'data-line-action="open-column-config"')
+        self.assertContains(response, "Table Configuration")
+        self.assertContains(response, 'data-column-choice="serial"')
+        self.assertContains(response, 'class="nbcot-line-row nbcot-line-tracked"')
+        self.assertNotContains(response, 'data-line-action="toggle-column"')
         self.assertContains(response, "Save Line Tracking")
         self.assertContains(response, 'name="line_keys" value="45.0" checked')
         self.assertContains(response, 'name="line_keys" value="45.1"')
@@ -229,6 +244,49 @@ class NBCOTCustomViewTest(TestCase):
         self.assertTrue(major_line.is_tracked)
         self.assertFalse(tracked_child.is_tracked)
         self.assertTrue(untracked_child.is_tracked)
+
+    def test_archive_view_marks_order_archived(self):
+        """Archive action should remove the order from the default tracked list without deleting it."""
+        response = self.client.get(reverse("plugins:nbcot:ciscoorder_archive", kwargs={"pk": self.order.pk}))
+
+        self.assertRedirects(response, self.order.get_absolute_url())
+        self.order.refresh_from_db()
+        self.assertTrue(self.order.is_archived)
+        self.assertFalse(self.order.is_tracked)
+
+    def test_export_single_order_to_xlsx(self):
+        """Single-order export should return an XLSX workbook with major/minor line rows."""
+        fixtures.create_line(self.order, line_key="45.0", line_number="45.0", sku="HCI-MAJOR", is_tracked=True)
+        fixtures.create_line(
+            self.order,
+            line_key="45.1",
+            line_number="45.1",
+            sku="HCI-MINOR",
+            tracking_number="TRACK-45",
+            serial_number="SER-45",
+        )
+
+        response = self.client.get(reverse("plugins:nbcot:ciscoorder_export", kwargs={"pk": self.order.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("Cisco_Order_SO-6001", response["Content-Disposition"])
+        self.assertGreater(len(response.content), 1000)
+
+    def test_export_selected_orders_to_xlsx(self):
+        """List export should include selected tracked orders."""
+        other_order = fixtures.create_ciscoorder(order_number="SO-6002", project_number="PRJ-6002")
+
+        response = self.client.get(
+            reverse("plugins:nbcot:ciscoorder_export_selected"),
+            {"pk": [str(self.order.pk), str(other_order.pk)]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Cisco_Orders", response["Content-Disposition"])
 
     @patch("nbcot.views.CiscoOrderSynchronizer")
     def test_track_view_redirects_to_order(self, mock_sync_class):

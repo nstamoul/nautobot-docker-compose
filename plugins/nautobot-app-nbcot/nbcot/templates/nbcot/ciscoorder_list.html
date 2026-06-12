@@ -1,0 +1,36 @@
+{% extends 'generic/object_list.html' %}
+
+{% block buttons %}
+    {{ block.super }}
+    <a
+        class="btn btn-outline-primary"
+        href="{% url 'plugins:nbcot:ciscoorder_export_selected' %}"
+        id="nbcot-export-selected"
+    >
+        <span class="mdi mdi-download" aria-hidden="true"></span>
+        Export Selected
+    </a>
+    <script>
+        (function () {
+            var button = document.getElementById("nbcot-export-selected");
+            if (!button) {
+                return;
+            }
+            button.addEventListener("click", function (event) {
+                event.preventDefault();
+                var url = new URL(button.href, window.location.origin);
+                document.querySelectorAll("input[name='pk']:checked").forEach(function (input) {
+                    url.searchParams.append("pk", input.value);
+                });
+                if (!url.searchParams.has("pk")) {
+                    new URLSearchParams(window.location.search).forEach(function (value, key) {
+                        if (!["page", "per_page", "sort"].includes(key)) {
+                            url.searchParams.append(key, value);
+                        }
+                    });
+                }
+                window.location.href = url.toString();
+            });
+        }());
+    </script>
+{% endblock buttons %}

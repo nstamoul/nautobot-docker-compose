@@ -3,9 +3,11 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.db import transaction
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 from nautobot.apps.ui import (
@@ -27,6 +29,7 @@ from nbcot.cisco.exceptions import NBCOTConfigurationError
 from nbcot.cisco.line_items import build_line_tree
 from nbcot.cisco.subscriptions import CiscoSubscriptionService
 from nbcot.cisco.sync import CiscoOrderSynchronizer
+from nbcot.exports import build_orders_workbook
 
 
 class OrderSearchView(PermissionRequiredMixin, TemplateView):
@@ -247,6 +250,62 @@ class ToggleTrackingView(PermissionRequiredMixin, View):
         return redirect(order.get_absolute_url())
 
 
+class ArchiveCiscoOrderView(PermissionRequiredMixin, View):
+    """Archive a tracked order without deleting its history."""
+
+    permission_required = "nbcot.change_ciscoorder"
+
+    def get(self, request, pk):
+        """Mark the order archived and redirect back to the order."""
+        order = get_object_or_404(models.CiscoOrder, pk=pk)
+        order.is_archived = True
+        order.is_tracked = False
+        order.validated_save()
+        messages.success(request, f"Archived Cisco order {order.order_number}.")
+        return redirect(order.get_absolute_url())
+
+
+def _xlsx_response(content: bytes, filename: str) -> HttpResponse:
+    """Return an Excel response."""
+    response = HttpResponse(
+        content,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+class ExportCiscoOrderView(PermissionRequiredMixin, View):
+    """Export one tracked order to Excel."""
+
+    permission_required = "nbcot.view_ciscoorder"
+
+    def get(self, _request, pk):
+        """Return an XLSX workbook for the selected order."""
+        order = get_object_or_404(models.CiscoOrder.objects.prefetch_related("lines"), pk=pk)
+        content = build_orders_workbook([order])
+        filename = f"Cisco_Order_{order.order_number}_{timezone.now():%Y%m%d%H%M%S}.xlsx"
+        return _xlsx_response(content, filename)
+
+
+class ExportSelectedCiscoOrdersView(PermissionRequiredMixin, View):
+    """Export selected or filtered tracked orders to Excel."""
+
+    permission_required = "nbcot.view_ciscoorder"
+
+    def get(self, request):
+        """Return an XLSX workbook for selected pks or the current filtered queryset."""
+        pk_values = request.GET.getlist("pk")
+        queryset = models.CiscoOrder.objects.prefetch_related("lines")
+        if pk_values:
+            queryset = queryset.filter(pk__in=pk_values)
+        else:
+            queryset = filters.CiscoOrderFilterSet(request.GET, queryset).qs
+        content = build_orders_workbook(queryset.order_by("order_number"))
+        filename = f"Cisco_Orders_{timezone.now():%Y%m%d%H%M%S}.xlsx"
+        return _xlsx_response(content, filename)
+
+
 class UpdateCiscoOrderLineTrackingView(PermissionRequiredMixin, View):
     """Persist per-line tracking selections for a saved Cisco order."""
 
@@ -307,6 +366,20 @@ class CiscoOrderUIViewSet(NautobotUIViewSet):
                 icon="mdi-toggle-switch",
                 link_name="plugins:nbcot:ciscoorder_toggle_tracking",
             ),
+            Button(
+                weight=120,
+                label="Export",
+                color="secondary",
+                icon="mdi-download",
+                link_name="plugins:nbcot:ciscoorder_export",
+            ),
+            Button(
+                weight=130,
+                label="Archive",
+                color="danger",
+                icon="mdi-archive",
+                link_name="plugins:nbcot:ciscoorder_archive",
+            ),
         ],
         panels=[
             ObjectFieldsPanel(
@@ -317,12 +390,14 @@ class CiscoOrderUIViewSet(NautobotUIViewSet):
                     "order_number",
                     "environment",
                     "customer_po_number",
+                    "project_number",
                     "account_name",
                     "account_number",
                     "status",
                     "status_detail",
                     "lifecycle_state",
                     "is_tracked",
+                    "is_archived",
                     "open_exception_count",
                 ],
             ),
@@ -339,6 +414,16 @@ class CiscoOrderUIViewSet(NautobotUIViewSet):
                     "last_synced_at",
                     "last_sync_status",
                     "last_sync_message",
+                ],
+            ),
+            ObjectFieldsPanel(
+                weight=115,
+                section=SectionChoices.RIGHT_HALF,
+                label="Local Tracking",
+                fields=[
+                    "notes",
+                    "notification_recipients",
+                    "notification_teams_webhook_url",
                 ],
             ),
             CiscoOrderLineTreePanel(

@@ -26,7 +26,12 @@ class CiscoOrderForm(NautobotModelForm):  # pylint: disable=too-many-ancestors
             "status",
             "status_detail",
             "lifecycle_state",
+            "project_number",
+            "notes",
+            "notification_recipients",
+            "notification_teams_webhook_url",
             "is_tracked",
+            "is_archived",
             "requested_delivery_date",
             "promised_delivery_date",
             "estimated_delivery_date",
@@ -41,34 +46,60 @@ class CiscoOrderBulkEditForm(TagsBulkEditFormMixin, NautobotBulkEditForm):  # py
 
     pk = forms.ModelMultipleChoiceField(queryset=models.CiscoOrder.objects.all(), widget=forms.MultipleHiddenInput)
     is_tracked = forms.NullBooleanField(required=False, label="Tracked")
+    is_archived = forms.NullBooleanField(required=False, label="Archived")
     environment = forms.ChoiceField(required=False, choices=CiscoEnvironmentChoices, label="Environment")
     status = forms.CharField(required=False, max_length=CHARFIELD_MAX_LENGTH)
     account_name = forms.CharField(required=False, max_length=CHARFIELD_MAX_LENGTH)
     customer_po_number = forms.CharField(required=False, max_length=CHARFIELD_MAX_LENGTH)
+    project_number = forms.CharField(required=False, max_length=CHARFIELD_MAX_LENGTH)
+    notes = forms.CharField(required=False, widget=forms.Textarea)
+    notification_recipients = forms.CharField(required=False, widget=forms.Textarea)
+    notification_teams_webhook_url = forms.URLField(required=False, max_length=1024)
 
     class Meta:
         """Meta attributes."""
 
-        nullable_fields = ["environment", "status", "account_name", "customer_po_number"]
+        nullable_fields = [
+            "environment",
+            "status",
+            "account_name",
+            "customer_po_number",
+            "project_number",
+            "notes",
+            "notification_recipients",
+            "notification_teams_webhook_url",
+        ]
 
 
 class CiscoOrderFilterForm(NautobotFilterForm):  # pylint: disable=too-many-ancestors
     """Filter form for tracked order list view."""
 
     model = models.CiscoOrder
-    field_order = ["q", "environment", "order_number", "customer_po_number", "account_name", "status", "is_tracked"]
+    field_order = [
+        "q",
+        "environment",
+        "order_number",
+        "customer_po_number",
+        "account_name",
+        "project_number",
+        "status",
+        "is_tracked",
+        "is_archived",
+    ]
 
     q = forms.CharField(
         required=False,
         label="Search",
-        help_text="Search within order number, PO number, account name, or status.",
+        help_text="Search within exposed order and line fields.",
     )
     environment = forms.ChoiceField(required=False, choices=CiscoEnvironmentChoices, label="Environment")
     order_number = forms.CharField(required=False, label="Order Number")
     customer_po_number = forms.CharField(required=False, label="Customer PO")
     account_name = forms.CharField(required=False, label="Account")
+    project_number = forms.CharField(required=False, label="Project Number")
     status = forms.CharField(required=False, label="Status")
     is_tracked = forms.NullBooleanField(required=False, label="Tracked")
+    is_archived = forms.NullBooleanField(required=False, label="Archived")
 
 
 class OrderSearchForm(forms.Form):

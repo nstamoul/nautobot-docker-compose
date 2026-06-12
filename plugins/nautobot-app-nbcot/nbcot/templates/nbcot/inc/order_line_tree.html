@@ -1,10 +1,72 @@
 {% with table_id=line_tree_id|default:"nbcot-line-tree" %}
+<style>
+    .nbcot-line-tree .nbcot-line-toolbar {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .nbcot-line-tree .nbcot-line-filter {
+        margin-left: auto;
+        max-width: 360px;
+        min-width: 260px;
+    }
+    .nbcot-line-tree .nbcot-line-config-panel {
+        background: #fff;
+        border-left: 1px solid #ddd;
+        bottom: 0;
+        box-shadow: -4px 0 16px rgba(0, 0, 0, 0.18);
+        display: none;
+        overflow: auto;
+        padding: 20px;
+        position: fixed;
+        right: 0;
+        top: 0;
+        width: 340px;
+        z-index: 1050;
+    }
+    .nbcot-line-tree .nbcot-line-config-panel.is-open {
+        display: block;
+    }
+    .nbcot-line-tree .nbcot-line-config-header {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .nbcot-line-tree .nbcot-line-config-warning {
+        background: #fff4e5;
+        border: 1px solid #f5d2a1;
+        border-radius: 4px;
+        color: #8a4b00;
+        margin-bottom: 16px;
+        padding: 12px;
+    }
+    .nbcot-line-tree .nbcot-line-config-options label {
+        display: block;
+        font-weight: 400;
+        margin-bottom: 10px;
+    }
+    .nbcot-line-tree .nbcot-line-config-actions {
+        border-top: 1px solid #eee;
+        margin-top: 18px;
+        padding-top: 12px;
+        text-align: right;
+    }
+    .nbcot-line-tree tr.nbcot-line-tracked > td {
+        background: #eaf4ff;
+    }
+    .nbcot-line-tree tr.nbcot-line-tracked > td:first-child {
+        border-left: 4px solid #2f80ed;
+    }
+</style>
 <div class="nbcot-line-tree" data-line-tree="{{ table_id }}">
     {% if tracking_form_action %}
         <form method="post" action="{{ tracking_form_action }}">
             {% csrf_token %}
     {% endif %}
-    <div class="clearfix" style="margin-bottom: 12px;">
+    <div class="nbcot-line-toolbar">
         <div class="btn-group">
             <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
             <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
@@ -18,13 +80,43 @@
         {% if tracking_submit_label %}
             <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
         {% endif %}
-        <div class="btn-group" style="margin-left: 8px;">
-            <button type="button" class="btn btn-default btn-sm" data-line-action="toggle-column" data-column-key="serial">Serial</button>
-            <button type="button" class="btn btn-default btn-sm" data-line-action="toggle-column" data-column-key="tracking">Tracking</button>
-        </div>
-        <div class="input-group input-group-sm pull-right" style="max-width: 360px;">
+        <div class="input-group input-group-sm nbcot-line-filter">
             <span class="input-group-addon">Filter</span>
             <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
+        </div>
+        <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
+            <span class="mdi mdi-cog" aria-hidden="true"></span>
+            <span class="sr-only">Configure columns</span>
+        </button>
+    </div>
+
+    <div class="nbcot-line-config-panel" data-line-config-panel>
+        <div class="nbcot-line-config-header">
+            <h3 style="margin: 0;">Table Configuration</h3>
+            <button type="button" class="btn btn-link btn-sm" data-line-action="close-column-config" aria-label="Close">×</button>
+        </div>
+        <div class="nbcot-line-config-warning">Column choices may affect loading times.</div>
+        <p class="text-muted">Use the controls below to select which columns to display.</p>
+        <div class="nbcot-line-config-options">
+            {% if tracking_mode %}<label><input type="checkbox" data-column-choice="track" checked> Track</label>{% endif %}
+            <label><input type="checkbox" data-column-choice="line" checked> Line</label>
+            <label><input type="checkbox" data-column-choice="sku" checked> SKU</label>
+            <label><input type="checkbox" data-column-choice="description" checked> Description</label>
+            <label><input type="checkbox" data-column-choice="status" checked> Status</label>
+            <label><input type="checkbox" data-column-choice="shipment" checked> Shipment</label>
+            {% if not tracking_mode %}<label><input type="checkbox" data-column-choice="tracked" checked> Is Tracked</label>{% endif %}
+            <label><input type="checkbox" data-column-choice="ordered" checked> Qty</label>
+            <label><input type="checkbox" data-column-choice="fulfilled" checked> Fulfilled</label>
+            <label><input type="checkbox" data-column-choice="backordered" checked> Backorder</label>
+            <label><input type="checkbox" data-column-choice="promised" checked> Promised</label>
+            <label><input type="checkbox" data-column-choice="estimated" checked> Estimated</label>
+            <label><input type="checkbox" data-column-choice="serial" checked> Serial</label>
+            <label><input type="checkbox" data-column-choice="carrier" checked> Carrier</label>
+            <label><input type="checkbox" data-column-choice="tracking" checked> Tracking</label>
+        </div>
+        <div class="nbcot-line-config-actions">
+            <button type="button" class="btn btn-primary btn-sm" data-line-action="save-column-config">Save</button>
+            <button type="button" class="btn btn-default btn-sm" data-line-action="reset-column-config">Reset</button>
         </div>
     </div>
 
@@ -33,52 +125,53 @@
             <thead>
                 <tr>
                     {% if tracking_mode %}
-                        <th style="width: 42px;">Track</th>
+                        <th data-column-key="track" style="width: 42px;">Track</th>
                     {% endif %}
-                    <th style="min-width: 130px;">
+                    <th data-column-key="line" style="min-width: 130px;">
                         <button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="line" data-line-sort-type="line">Line</button>
                     </th>
-                    <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="sku">SKU</button></th>
-                    <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="description">Description</button></th>
-                    <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="status">Status</button></th>
-                    <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="shipment">Shipment</button></th>
+                    <th data-column-key="sku"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="sku">SKU</button></th>
+                    <th data-column-key="description"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="description">Description</button></th>
+                    <th data-column-key="status"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="status">Status</button></th>
+                    <th data-column-key="shipment"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="shipment">Shipment</button></th>
                     {% if not tracking_mode %}
-                        <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracked">Is Tracked</button></th>
+                        <th data-column-key="tracked"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracked">Is Tracked</button></th>
                     {% endif %}
-                    <th class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="ordered" data-line-sort-type="number">Qty</button></th>
-                    <th class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="fulfilled" data-line-sort-type="number">Fulfilled</button></th>
-                    <th class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="backordered" data-line-sort-type="number">Backorder</button></th>
-                    <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="promised">Promised</button></th>
-                    <th><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="estimated">Estimated</button></th>
+                    <th data-column-key="ordered" class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="ordered" data-line-sort-type="number">Qty</button></th>
+                    <th data-column-key="fulfilled" class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="fulfilled" data-line-sort-type="number">Fulfilled</button></th>
+                    <th data-column-key="backordered" class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="backordered" data-line-sort-type="number">Backorder</button></th>
+                    <th data-column-key="promised"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="promised">Promised</button></th>
+                    <th data-column-key="estimated"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="estimated">Estimated</button></th>
                     <th data-column-key="serial"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="serial">Serial</button></th>
-                    <th data-column-key="tracking"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="carrier">Carrier</button></th>
+                    <th data-column-key="carrier"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="carrier">Carrier</button></th>
                     <th data-column-key="tracking"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracking">Tracking</button></th>
                 </tr>
                 <tr>
                     {% if tracking_mode %}
-                        <th></th>
+                        <th data-column-key="track"></th>
                     {% endif %}
-                    <th><input type="search" class="form-control input-sm" data-line-filter="line"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="sku"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="description"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="status"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="shipment"></th>
+                    <th data-column-key="line"><input type="search" class="form-control input-sm" data-line-filter="line"></th>
+                    <th data-column-key="sku"><input type="search" class="form-control input-sm" data-line-filter="sku"></th>
+                    <th data-column-key="description"><input type="search" class="form-control input-sm" data-line-filter="description"></th>
+                    <th data-column-key="status"><input type="search" class="form-control input-sm" data-line-filter="status"></th>
+                    <th data-column-key="shipment"><input type="search" class="form-control input-sm" data-line-filter="shipment"></th>
                     {% if not tracking_mode %}
-                        <th><input type="search" class="form-control input-sm" data-line-filter="tracked"></th>
+                        <th data-column-key="tracked"><input type="search" class="form-control input-sm" data-line-filter="tracked"></th>
                     {% endif %}
-                    <th><input type="search" class="form-control input-sm" data-line-filter="ordered"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="fulfilled"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="backordered"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="promised"></th>
-                    <th><input type="search" class="form-control input-sm" data-line-filter="estimated"></th>
+                    <th data-column-key="ordered"><input type="search" class="form-control input-sm" data-line-filter="ordered"></th>
+                    <th data-column-key="fulfilled"><input type="search" class="form-control input-sm" data-line-filter="fulfilled"></th>
+                    <th data-column-key="backordered"><input type="search" class="form-control input-sm" data-line-filter="backordered"></th>
+                    <th data-column-key="promised"><input type="search" class="form-control input-sm" data-line-filter="promised"></th>
+                    <th data-column-key="estimated"><input type="search" class="form-control input-sm" data-line-filter="estimated"></th>
                     <th data-column-key="serial"><input type="search" class="form-control input-sm" data-line-filter="serial"></th>
-                    <th data-column-key="tracking"><input type="search" class="form-control input-sm" data-line-filter="carrier"></th>
+                    <th data-column-key="carrier"><input type="search" class="form-control input-sm" data-line-filter="carrier"></th>
                     <th data-column-key="tracking"><input type="search" class="form-control input-sm" data-line-filter="tracking"></th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in line_rows %}
                     <tr
+                        class="nbcot-line-row{% if row.line.is_tracked %} nbcot-line-tracked{% endif %}"
                         data-line-row="{{ row.row_id }}"
                         data-parent-id="{{ row.parent_id }}"
                         data-ancestor-ids="{{ row.ancestor_ids|join:' ' }}"
@@ -104,11 +197,11 @@
                         data-estimated-ship="{{ row.line.estimated_ship_date|default:'' }}"
                     >
                         {% if tracking_mode %}
-                            <td>
+                            <td data-column-key="track">
                                 <input type="checkbox" name="line_keys" value="{{ row.line.line_key }}"{% if row.line.is_tracked %} checked{% endif %}>
                             </td>
                         {% endif %}
-                        <td style="padding-left: {{ row.indent_px }}px;">
+                        <td data-column-key="line" style="padding-left: {{ row.indent_px }}px;">
                             {% if row.has_children %}
                                 <button type="button" class="btn btn-xs btn-default" data-line-action="toggle" data-target-row="{{ row.row_id }}" aria-expanded="true">-</button>
                             {% else %}
@@ -120,20 +213,20 @@
                                 {{ row.line.line_number|default:row.line.line_key }}
                             {% endif %}
                         </td>
-                        <td>{{ row.line.sku|default:"-" }}</td>
-                        <td>{{ row.line.description|default:"-" }}</td>
-                        <td>{{ row.line.status|default:"-" }}</td>
-                        <td>{{ row.line.shipment_status|default:"-" }}</td>
+                        <td data-column-key="sku">{{ row.line.sku|default:"-" }}</td>
+                        <td data-column-key="description">{{ row.line.description|default:"-" }}</td>
+                        <td data-column-key="status">{{ row.line.status|default:"-" }}</td>
+                        <td data-column-key="shipment">{{ row.line.shipment_status|default:"-" }}</td>
                         {% if not tracking_mode %}
-                            <td>{% if row.line.is_tracked %}<span class="text-success">Yes</span>{% else %}<span class="text-danger">No</span>{% endif %}</td>
+                            <td data-column-key="tracked">{% if row.line.is_tracked %}<span class="text-success">Yes</span>{% else %}<span class="text-danger">No</span>{% endif %}</td>
                         {% endif %}
-                        <td class="text-right">{{ row.line.quantity_ordered }}</td>
-                        <td class="text-right">{{ row.line.quantity_fulfilled }}</td>
-                        <td class="text-right">{{ row.line.quantity_backordered }}</td>
-                        <td>{{ row.line.promised_delivery_date|default:"-" }}</td>
-                        <td>{{ row.line.estimated_delivery_date|default:"-" }}</td>
+                        <td data-column-key="ordered" class="text-right">{{ row.line.quantity_ordered }}</td>
+                        <td data-column-key="fulfilled" class="text-right">{{ row.line.quantity_fulfilled }}</td>
+                        <td data-column-key="backordered" class="text-right">{{ row.line.quantity_backordered }}</td>
+                        <td data-column-key="promised">{{ row.line.promised_delivery_date|default:"-" }}</td>
+                        <td data-column-key="estimated">{{ row.line.estimated_delivery_date|default:"-" }}</td>
                         <td data-column-key="serial">{{ row.line.serial_number|default:"-" }}</td>
-                        <td data-column-key="tracking">{{ row.line.carrier|default:"-" }}</td>
+                        <td data-column-key="carrier">{{ row.line.carrier|default:"-" }}</td>
                         <td data-column-key="tracking">
                             {% if row.line.tracking_url %}
                                 <a href="{{ row.line.tracking_url }}" target="_blank" rel="noopener noreferrer">{{ row.line.tracking_number|default:row.line.tracking_url }}</a>
@@ -191,6 +284,7 @@
             var rows = Array.from(tree.querySelectorAll("[data-line-row]"));
             var collapsed = new Set();
             var hiddenColumns = new Set();
+            var storageKey = "nbcot-line-columns:" + tree.getAttribute("data-line-tree");
             var sortState = {key: "line", type: "line", direction: "asc"};
 
             function childrenOf(parentId) {
@@ -281,6 +375,31 @@
                 applyVisibility();
             }
 
+            function applyColumnVisibility() {
+                tree.querySelectorAll("[data-column-key]").forEach(function (element) {
+                    var key = element.getAttribute("data-column-key");
+                    element.style.display = hiddenColumns.has(key) ? "none" : "";
+                });
+                tree.querySelectorAll("[data-column-choice]").forEach(function (input) {
+                    input.checked = !hiddenColumns.has(input.getAttribute("data-column-choice"));
+                });
+            }
+
+            function saveColumnVisibility() {
+                window.localStorage.setItem(storageKey, JSON.stringify(Array.from(hiddenColumns)));
+            }
+
+            function loadColumnVisibility() {
+                try {
+                    JSON.parse(window.localStorage.getItem(storageKey) || "[]").forEach(function (key) {
+                        hiddenColumns.add(key);
+                    });
+                } catch (error) {
+                    hiddenColumns.clear();
+                }
+                applyColumnVisibility();
+            }
+
             tree.querySelectorAll("[data-line-action='toggle']").forEach(function (button) {
                 button.addEventListener("click", function () {
                     var rowId = button.getAttribute("data-target-row");
@@ -342,21 +461,34 @@
                     sortAndRender();
                 });
             });
-            tree.querySelectorAll("[data-line-action='toggle-column']").forEach(function (button) {
-                button.addEventListener("click", function () {
-                    var key = button.getAttribute("data-column-key");
+            tree.querySelectorAll("[data-column-choice]").forEach(function (input) {
+                input.addEventListener("change", function () {
+                    var key = input.getAttribute("data-column-choice");
                     if (hiddenColumns.has(key)) {
                         hiddenColumns.delete(key);
                     } else {
                         hiddenColumns.add(key);
                     }
-                    tree.querySelectorAll("th[data-column-key='" + key + "'], td[data-column-key='" + key + "']").forEach(function (element) {
-                        element.style.display = hiddenColumns.has(key) ? "none" : "";
-                    });
-                    button.classList.toggle("active", !hiddenColumns.has(key));
+                    applyColumnVisibility();
                 });
-                button.classList.add("active");
             });
+            var panel = tree.querySelector("[data-line-config-panel]");
+            tree.querySelector("[data-line-action='open-column-config']").addEventListener("click", function () {
+                panel.classList.add("is-open");
+            });
+            tree.querySelector("[data-line-action='close-column-config']").addEventListener("click", function () {
+                panel.classList.remove("is-open");
+            });
+            tree.querySelector("[data-line-action='save-column-config']").addEventListener("click", function () {
+                saveColumnVisibility();
+                panel.classList.remove("is-open");
+            });
+            tree.querySelector("[data-line-action='reset-column-config']").addEventListener("click", function () {
+                hiddenColumns.clear();
+                window.localStorage.removeItem(storageKey);
+                applyColumnVisibility();
+            });
+            loadColumnVisibility();
             sortAndRender();
         });
     }());

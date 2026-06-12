@@ -17,7 +17,10 @@ urlpatterns = [
     path("search/preview/", views.OrderPreviewView.as_view(), name="order_preview"),
     path("ccwr/", views.CCWRSubscriptionSearchView.as_view(), name="subscription_search"),
     path("search/track/", views.TrackCiscoOrderView.as_view(), name="order_track"),
+    path("cisco-orders/export.xlsx", views.ExportSelectedCiscoOrdersView.as_view(), name="ciscoorder_export_selected"),
     path("cisco-orders/<uuid:pk>/refresh/", views.RefreshCiscoOrderView.as_view(), name="ciscoorder_refresh"),
+    path("cisco-orders/<uuid:pk>/archive/", views.ArchiveCiscoOrderView.as_view(), name="ciscoorder_archive"),
+    path("cisco-orders/<uuid:pk>/export.xlsx", views.ExportCiscoOrderView.as_view(), name="ciscoorder_export"),
     path(
         "cisco-orders/<uuid:pk>/toggle-tracking/",
         views.ToggleTrackingView.as_view(),

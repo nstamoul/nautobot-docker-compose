@@ -34,6 +34,7 @@ class NBCOTConfig(NautobotAppConfig):
         "order_details_query_document": "",
         "subscription_search_query_document": "",
         "subscription_details_query_document": "",
+        "teams_webhook_url": "",
     }
     docs_view_name = "plugins:nbcot:docs"
     home_view_name = "plugins:nbcot:order_search"

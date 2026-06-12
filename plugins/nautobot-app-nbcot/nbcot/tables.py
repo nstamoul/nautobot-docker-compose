@@ -14,6 +14,8 @@ class CiscoOrderTable(BaseTable):
     pk = ToggleColumn()
     order_number = tables.Column(linkify=True)
     environment = tables.Column()
+    project_number = tables.Column()
+    notes = tables.Column()
     status = tables.Column()
     promised_delivery_date = tables.DateColumn()
     estimated_delivery_date = tables.DateColumn()
@@ -29,10 +31,13 @@ class CiscoOrderTable(BaseTable):
             "order_number",
             "environment",
             "customer_po_number",
+            "project_number",
+            "notes",
             "account_name",
             "status",
             "open_exception_count",
             "is_tracked",
+            "is_archived",
             "promised_delivery_date",
             "estimated_delivery_date",
             "last_synced_at",
@@ -42,12 +47,18 @@ class CiscoOrderTable(BaseTable):
         """Render row action buttons."""
         refresh_url = reverse("plugins:nbcot:ciscoorder_refresh", kwargs={"pk": record.pk})
         toggle_url = reverse("plugins:nbcot:ciscoorder_toggle_tracking", kwargs={"pk": record.pk})
+        archive_url = reverse("plugins:nbcot:ciscoorder_archive", kwargs={"pk": record.pk})
+        export_url = reverse("plugins:nbcot:ciscoorder_export", kwargs={"pk": record.pk})
         toggle_label = "Untrack" if record.is_tracked else "Track"
         toggle_class = "btn-warning" if record.is_tracked else "btn-success"
         return format_html(
             '<a class="btn btn-xs btn-primary" href="{}">Refresh</a> '
+            '<a class="btn btn-xs btn-default" href="{}">Export</a> '
+            '<a class="btn btn-xs btn-danger" href="{}">Archive</a> '
             '<a class="btn btn-xs {}" href="{}">{}</a>',
             refresh_url,
+            export_url,
+            archive_url,
             toggle_class,
             toggle_url,
             toggle_label,

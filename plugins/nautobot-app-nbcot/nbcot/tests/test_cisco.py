@@ -489,3 +489,50 @@ class CiscoOrderSynchronizerTest(TestCase):
         self.assertEqual(line.carrier, "SCHENKER LTL STANDARD EU1")
         self.assertEqual(line.tracking_number, "119745185/1")
         self.assertEqual(line.tracking_url, "https://carrier.example/track/119745185/1")
+
+    @patch("nbcot.cisco.sync.notify_order_changes")
+    def test_sync_notifies_interested_parties_on_date_status_and_shipment_changes(self, mock_notify):
+        """Sync should notify configured recipients for requested order and shipment changes."""
+        order = fixtures.create_ciscoorder(
+            order_number="SO-9005",
+            status="Submitted",
+            estimated_delivery_date="2026-04-20",
+            notification_recipients="ops@example.com; pm@example.com",
+            notification_teams_webhook_url="https://teams.example/webhook",
+        )
+        fixtures.create_line(
+            order,
+            line_key="server-1",
+            line_number="1.1",
+            shipment_status="In Progress",
+            is_tracked=True,
+        )
+        payload = {
+            "orderNumber": "SO-9005",
+            "status": "Shipped",
+            "estimatedDeliveryDate": "2026-04-22",
+            "lines": [
+                {
+                    "lineKey": "server-1",
+                    "lineNumber": "1.1",
+                    "sku": "UCSC-C240-M7SX",
+                    "status": "Shipped",
+                    "shippingAttributes": {
+                        "shipSetStatus": "Delivered",
+                        "estimatedDeliveryDate": "2026-04-22",
+                    },
+                }
+            ],
+        }
+        synchronizer = self._build_synchronizer(payload)
+
+        order, changes = synchronizer.sync_order_by_number("SO-9005")
+
+        self.assertTrue(changes)
+        mock_notify.assert_called_once()
+        notified_order, notified_changes = mock_notify.call_args.args
+        self.assertEqual(notified_order, order)
+        self.assertGreaterEqual(len(notified_changes), 2)
+        self.assertTrue(any(change.update_type == "status_changed" for change in notified_changes))
+        self.assertTrue(any(change.update_type == "date_changed" for change in notified_changes))
+        self.assertTrue(any(change.update_type == "shipment_changed" for change in notified_changes))

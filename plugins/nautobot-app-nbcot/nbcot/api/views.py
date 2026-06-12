@@ -19,7 +19,17 @@ class CiscoOrderLineViewSet(NautobotModelViewSet):  # pylint: disable=too-many-a
 
     queryset = models.CiscoOrderLine.objects.select_related("order")
     serializer_class = serializers.CiscoOrderLineSerializer
-    filterset_fields = ("order", "line_key", "sku", "status")
+    filterset_fields = (
+        "order",
+        "line_key",
+        "line_number",
+        "sku",
+        "status",
+        "shipment_status",
+        "serial_number",
+        "carrier",
+        "tracking_number",
+    )
 
 
 class CiscoOrderUpdateViewSet(NautobotModelViewSet):  # pylint: disable=too-many-ancestors

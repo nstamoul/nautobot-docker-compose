@@ -15,6 +15,7 @@ class CiscoOrderFilterSet(NautobotFilterSet):  # pylint: disable=too-many-ancest
     order_number = django_filters.CharFilter(lookup_expr="icontains")
     customer_po_number = django_filters.CharFilter(lookup_expr="icontains")
     account_name = django_filters.CharFilter(lookup_expr="icontains")
+    project_number = django_filters.CharFilter(lookup_expr="icontains")
     status = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
@@ -27,10 +28,20 @@ class CiscoOrderFilterSet(NautobotFilterSet):  # pylint: disable=too-many-ancest
             "order_number",
             "customer_po_number",
             "account_name",
+            "project_number",
             "status",
             "is_tracked",
+            "is_archived",
             "created",
         ]
+
+    @property
+    def qs(self):
+        """Hide archived orders by default in the tracked-order list."""
+        queryset = super().qs
+        if "is_archived" not in self.data:
+            queryset = queryset.filter(is_archived=False)
+        return queryset
 
     def search(self, queryset, _name, value):
         """Search common order fields."""
@@ -41,5 +52,23 @@ class CiscoOrderFilterSet(NautobotFilterSet):  # pylint: disable=too-many-ancest
             | Q(customer_po_number__icontains=value)
             | Q(account_name__icontains=value)
             | Q(account_number__icontains=value)
+            | Q(project_number__icontains=value)
+            | Q(notes__icontains=value)
             | Q(status__icontains=value)
-        )
+            | Q(status_detail__icontains=value)
+            | Q(lifecycle_state__icontains=value)
+            | Q(last_sync_status__icontains=value)
+            | Q(last_sync_message__icontains=value)
+            | Q(lines__line_number__icontains=value)
+            | Q(lines__sku__icontains=value)
+            | Q(lines__description__icontains=value)
+            | Q(lines__status__icontains=value)
+            | Q(lines__shipment_status__icontains=value)
+            | Q(lines__serial_number__icontains=value)
+            | Q(lines__mac_address__icontains=value)
+            | Q(lines__instance_number__icontains=value)
+            | Q(lines__ship_set__icontains=value)
+            | Q(lines__carrier__icontains=value)
+            | Q(lines__tracking_number__icontains=value)
+            | Q(lines__tracking_url__icontains=value)
+        ).distinct()
