@@ -254,6 +254,97 @@ class NBCOTCustomViewTest(TestCase):
         self.assertTrue(self.order.is_archived)
         self.assertFalse(self.order.is_tracked)
 
+    def test_unarchive_view_marks_order_unarchived(self):
+        """Unarchive action should make an archived order visible again without implicitly tracking it."""
+        self.order.is_archived = True
+        self.order.is_tracked = False
+        self.order.validated_save()
+
+        response = self.client.get(reverse("plugins:nbcot:ciscoorder_unarchive", kwargs={"pk": self.order.pk}))
+
+        self.assertRedirects(response, self.order.get_absolute_url())
+        self.order.refresh_from_db()
+        self.assertFalse(self.order.is_archived)
+        self.assertFalse(self.order.is_tracked)
+
+    def test_archived_orders_page_lists_archived_orders(self):
+        """Archived orders should have a dedicated list page."""
+        self.order.is_archived = True
+        self.order.is_tracked = False
+        self.order.validated_save()
+
+        response = self.client.get(reverse("plugins:nbcot:ciscoorder_archived_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Archived Cisco Orders")
+        self.assertContains(response, self.order.order_number)
+        self.assertContains(response, "Unarchive")
+
+    @patch("nbcot.views.CiscoOrderSynchronizer")
+    def test_bulk_refresh_selected_orders(self, mock_sync_class):
+        """Bulk refresh should refresh selected orders."""
+        other_order = fixtures.create_ciscoorder(order_number="SO-6002")
+        mock_sync = mock_sync_class.return_value
+        mock_sync.sync_order_by_number.return_value = (self.order, [])
+
+        response = self.client.post(
+            reverse("plugins:nbcot:ciscoorder_bulk_action", kwargs={"action": "refresh"}),
+            {"pk": [str(self.order.pk), str(other_order.pk)]},
+        )
+
+        self.assertRedirects(response, reverse("plugins:nbcot:ciscoorder_list"))
+        self.assertEqual(mock_sync_class.call_count, 2)
+        self.assertEqual(mock_sync.sync_order_by_number.call_count, 2)
+
+    def test_bulk_archive_selected_orders(self):
+        """Bulk archive should archive and untrack selected orders."""
+        other_order = fixtures.create_ciscoorder(order_number="SO-6002")
+
+        response = self.client.post(
+            reverse("plugins:nbcot:ciscoorder_bulk_action", kwargs={"action": "archive"}),
+            {"pk": [str(self.order.pk), str(other_order.pk)]},
+        )
+
+        self.assertRedirects(response, reverse("plugins:nbcot:ciscoorder_list"))
+        self.order.refresh_from_db()
+        other_order.refresh_from_db()
+        self.assertTrue(self.order.is_archived)
+        self.assertFalse(self.order.is_tracked)
+        self.assertTrue(other_order.is_archived)
+        self.assertFalse(other_order.is_tracked)
+
+    def test_bulk_untrack_selected_orders(self):
+        """Bulk untrack should turn tracking off without archiving."""
+        other_order = fixtures.create_ciscoorder(order_number="SO-6002")
+
+        response = self.client.post(
+            reverse("plugins:nbcot:ciscoorder_bulk_action", kwargs={"action": "untrack"}),
+            {"pk": [str(self.order.pk), str(other_order.pk)]},
+        )
+
+        self.assertRedirects(response, reverse("plugins:nbcot:ciscoorder_list"))
+        self.order.refresh_from_db()
+        other_order.refresh_from_db()
+        self.assertFalse(self.order.is_tracked)
+        self.assertFalse(other_order.is_tracked)
+        self.assertFalse(self.order.is_archived)
+
+    def test_bulk_unarchive_selected_orders(self):
+        """Bulk unarchive should clear archive state for selected orders."""
+        self.order.is_archived = True
+        self.order.is_tracked = False
+        self.order.validated_save()
+
+        response = self.client.post(
+            reverse("plugins:nbcot:ciscoorder_bulk_action", kwargs={"action": "unarchive"}),
+            {"pk": [str(self.order.pk)]},
+        )
+
+        self.assertRedirects(response, reverse("plugins:nbcot:ciscoorder_archived_list"))
+        self.order.refresh_from_db()
+        self.assertFalse(self.order.is_archived)
+        self.assertFalse(self.order.is_tracked)
+
     def test_export_single_order_to_xlsx(self):
         """Single-order export should return an XLSX workbook with major/minor line rows."""
         fixtures.create_line(self.order, line_key="45.0", line_number="45.0", sku="HCI-MAJOR", is_tracked=True)
@@ -287,6 +378,16 @@ class NBCOTCustomViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Cisco_Orders", response["Content-Disposition"])
+
+    def test_list_view_renders_bulk_action_buttons(self):
+        """Tracked order list should expose bulk actions for selected rows."""
+        response = self.client.get(reverse("plugins:nbcot:ciscoorder_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-nbcot-bulk-action="refresh"')
+        self.assertContains(response, 'data-nbcot-bulk-action="export"')
+        self.assertContains(response, 'data-nbcot-bulk-action="archive"')
+        self.assertContains(response, 'data-nbcot-bulk-action="untrack"')
 
     @patch("nbcot.views.CiscoOrderSynchronizer")
     def test_track_view_redirects_to_order(self, mock_sync_class):

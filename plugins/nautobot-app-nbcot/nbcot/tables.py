@@ -48,17 +48,23 @@ class CiscoOrderTable(BaseTable):
         refresh_url = reverse("plugins:nbcot:ciscoorder_refresh", kwargs={"pk": record.pk})
         toggle_url = reverse("plugins:nbcot:ciscoorder_toggle_tracking", kwargs={"pk": record.pk})
         archive_url = reverse("plugins:nbcot:ciscoorder_archive", kwargs={"pk": record.pk})
+        unarchive_url = reverse("plugins:nbcot:ciscoorder_unarchive", kwargs={"pk": record.pk})
         export_url = reverse("plugins:nbcot:ciscoorder_export", kwargs={"pk": record.pk})
         toggle_label = "Untrack" if record.is_tracked else "Track"
         toggle_class = "btn-warning" if record.is_tracked else "btn-success"
+        archive_label = "Unarchive" if record.is_archived else "Archive"
+        archive_class = "btn-success" if record.is_archived else "btn-danger"
+        archive_action_url = unarchive_url if record.is_archived else archive_url
         return format_html(
             '<a class="btn btn-xs btn-primary" href="{}">Refresh</a> '
             '<a class="btn btn-xs btn-default" href="{}">Export</a> '
-            '<a class="btn btn-xs btn-danger" href="{}">Archive</a> '
+            '<a class="btn btn-xs {}" href="{}">{}</a> '
             '<a class="btn btn-xs {}" href="{}">{}</a>',
             refresh_url,
             export_url,
-            archive_url,
+            archive_class,
+            archive_action_url,
+            archive_label,
             toggle_class,
             toggle_url,
             toggle_label,

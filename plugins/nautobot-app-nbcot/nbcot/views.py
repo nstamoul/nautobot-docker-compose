@@ -3,13 +3,14 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
+from nautobot.core.views import generic
 from nautobot.apps.ui import (
     Button,
     ObjectDetailContent,
@@ -265,6 +266,94 @@ class ArchiveCiscoOrderView(PermissionRequiredMixin, View):
         return redirect(order.get_absolute_url())
 
 
+class UnarchiveCiscoOrderView(PermissionRequiredMixin, View):
+    """Unarchive a Cisco order without re-enabling tracking implicitly."""
+
+    permission_required = "nbcot.change_ciscoorder"
+
+    def get(self, request, pk):
+        """Mark the order unarchived and redirect back to the order."""
+        order = get_object_or_404(models.CiscoOrder, pk=pk)
+        order.is_archived = False
+        order.validated_save()
+        messages.success(request, f"Unarchived Cisco order {order.order_number}.")
+        return redirect(order.get_absolute_url())
+
+
+def _selected_orders(request):
+    """Return the selected Cisco orders from a bulk action request."""
+    pk_values = request.POST.getlist("pk")
+    if not pk_values:
+        return models.CiscoOrder.objects.none()
+    return models.CiscoOrder.objects.filter(pk__in=pk_values).order_by("order_number")
+
+
+def _bulk_return_url(request, action):
+    """Return to the page that initiated the bulk action."""
+    posted_return_url = request.POST.get("return_url", "")
+    if posted_return_url.startswith("/"):
+        return posted_return_url
+    if action == "unarchive":
+        return reverse("plugins:nbcot:ciscoorder_archived_list")
+    return reverse("plugins:nbcot:ciscoorder_list")
+
+
+class BulkCiscoOrderActionView(PermissionRequiredMixin, View):
+    """Execute selected-order bulk actions."""
+
+    permission_required = "nbcot.change_ciscoorder"
+    allowed_actions = {"refresh", "archive", "unarchive", "untrack"}
+
+    def post(self, request, action):
+        """Apply a bulk action to selected Cisco orders."""
+        if action not in self.allowed_actions:
+            return HttpResponseBadRequest(f"Unsupported bulk action: {action}")
+        orders = list(_selected_orders(request))
+        if not orders:
+            messages.warning(request, "Select at least one Cisco order first.")
+            return redirect(_bulk_return_url(request, action))
+
+        if action == "refresh":
+            refreshed, failures = self._refresh_orders(orders)
+            if failures:
+                messages.warning(request, f"Refreshed {refreshed} Cisco orders with {failures} failures.")
+            else:
+                messages.success(request, f"Refreshed {refreshed} Cisco orders.")
+        elif action == "archive":
+            for order in orders:
+                order.is_archived = True
+                order.is_tracked = False
+                order.validated_save()
+            messages.success(request, f"Archived {len(orders)} Cisco orders.")
+        elif action == "unarchive":
+            for order in orders:
+                order.is_archived = False
+                order.validated_save()
+            messages.success(request, f"Unarchived {len(orders)} Cisco orders.")
+        elif action == "untrack":
+            for order in orders:
+                order.is_tracked = False
+                order.validated_save()
+            messages.success(request, f"Untracked {len(orders)} Cisco orders.")
+
+        return redirect(_bulk_return_url(request, action))
+
+    @staticmethod
+    def _refresh_orders(orders):
+        """Refresh selected orders and record sync errors without stopping the whole batch."""
+        refreshed = 0
+        failures = 0
+        for order in orders:
+            synchronizer = CiscoOrderSynchronizer(environment_override=order.environment)
+            try:
+                synchronizer.sync_order_by_number(order.order_number, source=ChangeSourceChoices.MANUAL)
+                refreshed += 1
+            except Exception as exc:  # pragma: no cover - live API failure path
+                failures += 1
+                synchronizer.record_sync_error(order, exc, source=ChangeSourceChoices.MANUAL)
+        return refreshed, failures
+
+
 def _xlsx_response(content: bytes, filename: str) -> HttpResponse:
     """Return an Excel response."""
     response = HttpResponse(
@@ -304,6 +393,24 @@ class ExportSelectedCiscoOrdersView(PermissionRequiredMixin, View):
         content = build_orders_workbook(queryset.order_by("order_number"))
         filename = f"Cisco_Orders_{timezone.now():%Y%m%d%H%M%S}.xlsx"
         return _xlsx_response(content, filename)
+
+
+class ArchivedCiscoOrderListView(generic.ObjectListView):
+    """List archived Cisco orders."""
+
+    queryset = models.CiscoOrder.objects.filter(is_archived=True).prefetch_related("lines", "updates")
+    table = tables.CiscoOrderTable
+    filterset = filters.ArchivedCiscoOrderFilterSet
+    filterset_form = forms.CiscoOrderFilterForm
+    template_name = "nbcot/ciscoorder_list.html"
+    action_buttons = ()
+
+    def get_extra_context(self, request, *args, **kwargs):
+        """Add page metadata for the shared Cisco order list template."""
+        return {
+            "nbcot_archived_page": True,
+            "title": "Archived Cisco Orders",
+        }
 
 
 class UpdateCiscoOrderLineTrackingView(PermissionRequiredMixin, View):

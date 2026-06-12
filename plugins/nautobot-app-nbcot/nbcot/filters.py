@@ -72,3 +72,15 @@ class CiscoOrderFilterSet(NautobotFilterSet):  # pylint: disable=too-many-ancest
             | Q(lines__tracking_number__icontains=value)
             | Q(lines__tracking_url__icontains=value)
         ).distinct()
+
+
+class ArchivedCiscoOrderFilterSet(CiscoOrderFilterSet):
+    """Filter for archived CiscoOrder list views."""
+
+    @property
+    def qs(self):
+        """Show archived orders by default on the archived-order list."""
+        queryset = super(CiscoOrderFilterSet, self).qs
+        if "is_archived" not in self.data:
+            queryset = queryset.filter(is_archived=True)
+        return queryset

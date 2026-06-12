@@ -2,34 +2,106 @@
 
 {% block buttons %}
     {{ block.super }}
-    <a
-        class="btn btn-outline-primary"
-        href="{% url 'plugins:nbcot:ciscoorder_export_selected' %}"
-        id="nbcot-export-selected"
-    >
+    {% if nbcot_archived_page %}
+        <span class="btn btn-outline-secondary disabled" aria-disabled="true">Archived Cisco Orders</span>
+        <a class="btn btn-outline-primary" href="{% url 'plugins:nbcot:ciscoorder_list' %}">
+            Active Orders
+        </a>
+    {% else %}
+        <a class="btn btn-outline-secondary" href="{% url 'plugins:nbcot:ciscoorder_archived_list' %}">
+            Archived Orders
+        </a>
+    {% endif %}
+    <button class="btn btn-outline-primary" type="button" data-nbcot-bulk-action="refresh">
+        <span class="mdi mdi-refresh" aria-hidden="true"></span>
+        Refresh Selected
+    </button>
+    <button class="btn btn-outline-primary" type="button" data-nbcot-bulk-action="export">
         <span class="mdi mdi-download" aria-hidden="true"></span>
         Export Selected
-    </a>
+    </button>
+    {% if nbcot_archived_page %}
+        <button class="btn btn-outline-success" type="button" data-nbcot-bulk-action="unarchive">
+            <span class="mdi mdi-archive-arrow-up" aria-hidden="true"></span>
+            Unarchive Selected
+        </button>
+    {% else %}
+        <button class="btn btn-outline-danger" type="button" data-nbcot-bulk-action="archive">
+            <span class="mdi mdi-archive" aria-hidden="true"></span>
+            Archive Selected
+        </button>
+        <button class="btn btn-outline-warning" type="button" data-nbcot-bulk-action="untrack">
+            <span class="mdi mdi-toggle-switch-off" aria-hidden="true"></span>
+            Untrack Selected
+        </button>
+    {% endif %}
+    <form id="nbcot-bulk-action-form" method="post" style="display: none;">
+        {% csrf_token %}
+        <input type="hidden" name="return_url" value="{{ request.get_full_path }}">
+    </form>
     <script>
         (function () {
-            var button = document.getElementById("nbcot-export-selected");
-            if (!button) {
-                return;
+            var exportUrl = "{% url 'plugins:nbcot:ciscoorder_export_selected' %}";
+            var bulkUrls = {
+                refresh: "{% url 'plugins:nbcot:ciscoorder_bulk_action' action='refresh' %}",
+                archive: "{% url 'plugins:nbcot:ciscoorder_bulk_action' action='archive' %}",
+                unarchive: "{% url 'plugins:nbcot:ciscoorder_bulk_action' action='unarchive' %}",
+                untrack: "{% url 'plugins:nbcot:ciscoorder_bulk_action' action='untrack' %}"
+            };
+
+            function selectedCheckboxes() {
+                return Array.from(document.querySelectorAll("input[name='pk']:checked"));
             }
-            button.addEventListener("click", function (event) {
-                event.preventDefault();
-                var url = new URL(button.href, window.location.origin);
-                document.querySelectorAll("input[name='pk']:checked").forEach(function (input) {
+
+            function appendCurrentFilters(url) {
+                new URLSearchParams(window.location.search).forEach(function (value, key) {
+                    if (!["page", "per_page", "sort"].includes(key)) {
+                        url.searchParams.append(key, value);
+                    }
+                });
+            }
+
+            function exportSelection() {
+                var url = new URL(exportUrl, window.location.origin);
+                selectedCheckboxes().forEach(function (input) {
                     url.searchParams.append("pk", input.value);
                 });
                 if (!url.searchParams.has("pk")) {
-                    new URLSearchParams(window.location.search).forEach(function (value, key) {
-                        if (!["page", "per_page", "sort"].includes(key)) {
-                            url.searchParams.append(key, value);
-                        }
-                    });
+                    appendCurrentFilters(url);
                 }
                 window.location.href = url.toString();
+            }
+
+            function postSelection(action) {
+                var form = document.getElementById("nbcot-bulk-action-form");
+                var selected = selectedCheckboxes();
+                if (!form || !selected.length) {
+                    return;
+                }
+                form.querySelectorAll("input[data-nbcot-selected-pk]").forEach(function (input) {
+                    input.remove();
+                });
+                selected.forEach(function (checkbox) {
+                    var input = document.createElement("input");
+                    input.type = "hidden";
+                    input.name = "pk";
+                    input.value = checkbox.value;
+                    input.setAttribute("data-nbcot-selected-pk", "true");
+                    form.appendChild(input);
+                });
+                form.action = bulkUrls[action];
+                form.submit();
+            }
+
+            document.querySelectorAll("[data-nbcot-bulk-action]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    var action = button.getAttribute("data-nbcot-bulk-action");
+                    if (action === "export") {
+                        exportSelection();
+                    } else {
+                        postSelection(action);
+                    }
+                });
             });
         }());
     </script>
