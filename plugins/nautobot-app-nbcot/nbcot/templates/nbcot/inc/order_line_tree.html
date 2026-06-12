@@ -7,14 +7,17 @@
         gap: 8px;
         margin-bottom: 8px;
     }
-    .nbcot-line-tree .nbcot-line-sticky-controls {
+    .nbcot-line-tree .nbcot-line-controls-row > th {
         background: #fff;
         border-bottom: 1px solid #ddd;
-        margin: -1px 0 12px;
-        padding: 8px 0;
+        left: 0;
+        padding: 8px 0 10px;
         position: sticky;
         top: 0;
         z-index: 30;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-controls {
+        background: #fff;
     }
     .nbcot-line-tree .nbcot-line-context-toolbar {
         align-items: center;
@@ -122,12 +125,12 @@
     .nbcot-line-tree thead th {
         background: #fff;
     }
-    .nbcot-line-tree thead tr:first-child th {
+    .nbcot-line-tree .nbcot-line-heading-row > th {
         position: sticky;
         top: var(--nbcot-line-header-top, 0px);
         z-index: 18;
     }
-    .nbcot-line-tree thead tr:nth-child(2) th {
+    .nbcot-line-tree .nbcot-line-filter-row > th {
         position: sticky;
         top: var(--nbcot-line-filter-top, 36px);
         z-index: 18;
@@ -155,63 +158,6 @@
         <form method="post" action="{{ tracking_form_action }}">
             {% csrf_token %}
     {% endif %}
-    <div class="nbcot-line-sticky-controls" data-line-sticky-controls>
-        <div class="nbcot-line-toolbar">
-            <div class="btn-group">
-                <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
-                <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
-            </div>
-            {% if tracking_mode %}
-                <div class="btn-group" style="margin-left: 8px;">
-                    <button type="button" class="btn btn-default btn-sm" data-line-action="select-visible">Select Visible</button>
-                    <button type="button" class="btn btn-default btn-sm" data-line-action="clear-visible">Clear Visible</button>
-                </div>
-            {% endif %}
-            {% if tracking_submit_label %}
-                <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
-            {% endif %}
-            <div class="input-group input-group-sm nbcot-line-filter">
-                <span class="input-group-addon">Filter</span>
-                <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
-            </div>
-            <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
-                <span class="mdi mdi-cog" aria-hidden="true"></span>
-                <span class="sr-only">Configure columns</span>
-            </button>
-        </div>
-        <div class="nbcot-line-context-toolbar" data-line-color-toolbar>
-            <div class="nbcot-line-color-picker">
-                <label for="{{ table_id }}-tracked-color" style="margin: 0;">Line color</label>
-                <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
-            </div>
-            <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
-            </div>
-            {% if tracking_mode %}
-                <div class="nbcot-line-color-actions">
-                    <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
-                    <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
-                </div>
-            {% endif %}
-            <div class="nbcot-line-freeze-control">
-                <label for="{{ table_id }}-freeze-count" style="margin: 0;">Frozen columns</label>
-                <select id="{{ table_id }}-freeze-count" class="form-control input-sm" data-line-freeze-count>
-                    <option value="0">0</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3" selected>3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                </select>
-            </div>
-        </div>
-    </div>
-
     <div class="nbcot-line-config-panel" data-line-config-panel>
         <div class="nbcot-line-config-header">
             <h3 style="margin: 0;">Table Configuration</h3>
@@ -254,7 +200,67 @@
     <div class="table-responsive">
         <table class="table table-hover table-condensed" id="{{ table_id }}">
             <thead>
-                <tr>
+                <tr class="nbcot-line-controls-row" data-line-sticky-controls>
+                    <th colspan="99">
+                        <div class="nbcot-line-sticky-controls">
+                            <div class="nbcot-line-toolbar">
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
+                                    <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
+                                </div>
+                                {% if tracking_mode %}
+                                    <div class="btn-group" style="margin-left: 8px;">
+                                        <button type="button" class="btn btn-default btn-sm" data-line-action="select-visible">Select Visible</button>
+                                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-visible">Clear Visible</button>
+                                    </div>
+                                {% endif %}
+                                {% if tracking_submit_label %}
+                                    <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
+                                {% endif %}
+                                <div class="input-group input-group-sm nbcot-line-filter">
+                                    <span class="input-group-addon">Filter</span>
+                                    <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
+                                </div>
+                                <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
+                                    <span class="mdi mdi-cog" aria-hidden="true"></span>
+                                    <span class="sr-only">Configure columns</span>
+                                </button>
+                            </div>
+                            <div class="nbcot-line-context-toolbar" data-line-color-toolbar>
+                                <div class="nbcot-line-color-picker">
+                                    <label for="{{ table_id }}-tracked-color" style="margin: 0;">Line color</label>
+                                    <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
+                                </div>
+                                <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
+                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
+                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
+                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
+                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
+                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
+                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
+                                </div>
+                                {% if tracking_mode %}
+                                    <div class="nbcot-line-color-actions">
+                                        <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
+                                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
+                                    </div>
+                                {% endif %}
+                                <div class="nbcot-line-freeze-control">
+                                    <label for="{{ table_id }}-freeze-count" style="margin: 0;">Frozen columns</label>
+                                    <select id="{{ table_id }}-freeze-count" class="form-control input-sm" data-line-freeze-count>
+                                        <option value="0">0</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3" selected>3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                </tr>
+                <tr class="nbcot-line-heading-row">
                     {% if tracking_mode %}
                         <th data-column-key="track" style="width: 42px;">Track</th>
                     {% endif %}
@@ -286,7 +292,7 @@
                     <th data-column-key="tracking_url"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracking-url">Carrier URL</button></th>
                     <th data-column-key="proof_of_delivery"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="proof-of-delivery">Proof Of Delivery</button></th>
                 </tr>
-                <tr>
+                <tr class="nbcot-line-filter-row">
                     {% if tracking_mode %}
                         <th data-column-key="track"></th>
                     {% endif %}
@@ -640,7 +646,7 @@
                 var frozenKeys = visibleColumnKeys().slice(0, freezeCount);
                 clearFrozenColumns();
                 frozenKeys.forEach(function (key) {
-                    var headerCell = tree.querySelector("thead tr:first-child [data-column-key='" + key + "']");
+                    var headerCell = tree.querySelector(".nbcot-line-heading-row [data-column-key='" + key + "']");
                     tree.querySelectorAll("[data-column-key='" + key + "']").forEach(function (cell) {
                         cell.classList.add("nbcot-sticky-column");
                         cell.style.setProperty("--nbcot-sticky-left", leftOffset + "px");
@@ -652,7 +658,7 @@
 
             function updateStickyOffsets() {
                 var controls = tree.querySelector("[data-line-sticky-controls]");
-                var firstHeaderRow = tree.querySelector("thead tr:first-child");
+                var firstHeaderRow = tree.querySelector(".nbcot-line-heading-row");
                 var controlsHeight = controls ? controls.getBoundingClientRect().height : 0;
                 var headerHeight = firstHeaderRow ? firstHeaderRow.getBoundingClientRect().height : 0;
                 tree.style.setProperty("--nbcot-line-header-top", controlsHeight + "px");
