@@ -132,6 +132,11 @@ class NBCOTCustomViewTest(TestCase):
                     proof_of_delivery_url="",
                     actual_delivery_date=None,
                     estimated_ship_date=None,
+                    parent_serial_number="PARENT-WVT294200FF",
+                    imei_number="IMEI-12345",
+                    license_key="LIC-12345",
+                    cloud_id="CLOUD-12345",
+                    contract_number="205093077",
                 ),
                 SimpleNamespace(
                     line_key="minor-1",
@@ -155,6 +160,11 @@ class NBCOTCustomViewTest(TestCase):
                     proof_of_delivery_url="",
                     actual_delivery_date=None,
                     estimated_ship_date=None,
+                    parent_serial_number="",
+                    imei_number="",
+                    license_key="",
+                    cloud_id="",
+                    contract_number="",
                 ),
             ],
         )
@@ -175,7 +185,19 @@ class NBCOTCustomViewTest(TestCase):
         self.assertContains(response, 'data-line-action="open-column-config"')
         self.assertContains(response, "Table Configuration")
         self.assertContains(response, 'data-column-key="serial"')
+        self.assertContains(response, 'data-column-key="parent_serial"')
+        self.assertContains(response, 'data-column-key="mac"')
+        self.assertContains(response, 'data-column-key="imei"')
+        self.assertContains(response, 'data-column-key="license_key"')
+        self.assertContains(response, 'data-column-key="cloud_id"')
+        self.assertContains(response, 'data-column-key="contract_number"')
         self.assertContains(response, 'data-column-key="tracking"')
+        self.assertContains(response, 'data-column-key="tracking_url"')
+        self.assertContains(response, 'data-column-key="proof_of_delivery"')
+        self.assertContains(response, 'data-column-move="up"')
+        self.assertContains(response, 'data-column-move="down"')
+        self.assertContains(response, 'data-line-color-picker')
+        self.assertContains(response, 'data-line-color-swatch="#eaf4ff"')
         self.assertNotContains(response, 'data-line-action="toggle-column"')
         self.assertFalse(models.CiscoOrder.objects.filter(order_number="SO-7100").exists())
         mock_sync_class.assert_called_once_with(environment_override="prod")
@@ -190,9 +212,14 @@ class NBCOTCustomViewTest(TestCase):
             line_number="45.1",
             sku="HCI-SUBMAJOR",
             serial_number="WVT294200FF",
+            parent_serial_number="PARENT-WVT294200FF",
             carrier="SCHENKER LTL STANDARD EU1",
             tracking_number="119745185/1",
             tracking_url="https://carrier.example/track/119745185/1",
+            imei_number="IMEI-12345",
+            license_key="LIC-12345",
+            cloud_id="CLOUD-12345",
+            contract_number="205093077",
         )
         fixtures.create_line(self.order, line_key="45.1.1", line_number="45.1.1", sku="HCI-CHILD")
 
@@ -210,6 +237,12 @@ class NBCOTCustomViewTest(TestCase):
         self.assertContains(response, 'data-line-action="open-column-config"')
         self.assertContains(response, "Table Configuration")
         self.assertContains(response, 'data-column-choice="serial"')
+        self.assertContains(response, 'data-column-choice="parent_serial"')
+        self.assertContains(response, 'data-column-choice="proof_of_delivery"')
+        self.assertContains(response, 'data-column-move="up"')
+        self.assertContains(response, 'data-line-action="apply-color-selected"')
+        self.assertContains(response, 'data-line-action="clear-color-selected"')
+        self.assertContains(response, 'data-line-color-swatch="#fff4cc"')
         self.assertContains(response, 'class="nbcot-line-row nbcot-line-tracked"')
         self.assertNotContains(response, 'data-line-action="toggle-column"')
         self.assertContains(response, "Save Line Tracking")
@@ -217,6 +250,11 @@ class NBCOTCustomViewTest(TestCase):
         self.assertContains(response, 'name="line_keys" value="45.1"')
         self.assertContains(response, "HCI-SUBMAJOR")
         self.assertContains(response, "WVT294200FF")
+        self.assertContains(response, "PARENT-WVT294200FF")
+        self.assertContains(response, "IMEI-12345")
+        self.assertContains(response, "LIC-12345")
+        self.assertContains(response, "CLOUD-12345")
+        self.assertContains(response, "205093077")
         self.assertContains(response, "SCHENKER LTL STANDARD EU1")
         self.assertContains(response, "119745185/1")
 

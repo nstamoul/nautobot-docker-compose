@@ -30,6 +30,8 @@ class CiscoOrderForm(NautobotModelForm):  # pylint: disable=too-many-ancestors
             "notes",
             "notification_recipients",
             "notification_teams_webhook_url",
+            "web_order_url",
+            "cisco_sales_order_url",
             "is_tracked",
             "is_archived",
             "requested_delivery_date",

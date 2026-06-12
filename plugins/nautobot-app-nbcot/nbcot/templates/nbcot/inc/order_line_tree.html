@@ -44,15 +44,63 @@
         padding: 12px;
     }
     .nbcot-line-tree .nbcot-line-config-options label {
-        display: block;
+        flex: 1;
         font-weight: 400;
+        margin: 0;
+    }
+    .nbcot-line-tree .nbcot-line-config-row {
+        align-items: center;
+        display: flex;
+        gap: 6px;
         margin-bottom: 10px;
+    }
+    .nbcot-line-tree .nbcot-line-config-row .btn {
+        padding: 1px 5px;
     }
     .nbcot-line-tree .nbcot-line-config-actions {
         border-top: 1px solid #eee;
         margin-top: 18px;
         padding-top: 12px;
         text-align: right;
+    }
+    .nbcot-line-tree .nbcot-line-color-controls {
+        border-top: 1px solid #eee;
+        margin-top: 18px;
+        padding-top: 12px;
+    }
+    .nbcot-line-tree .nbcot-line-color-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+    }
+    .nbcot-line-tree .nbcot-line-color-picker {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        margin: 10px 0;
+    }
+    .nbcot-line-tree .nbcot-line-color-picker input[type="color"] {
+        border: 1px solid #bbb;
+        height: 28px;
+        padding: 0;
+        width: 44px;
+    }
+    .nbcot-line-tree .nbcot-line-color-swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .nbcot-line-tree .nbcot-line-color-swatch {
+        border: 1px solid #999;
+        border-radius: 3px;
+        height: 24px;
+        padding: 0;
+        width: 24px;
+    }
+    .nbcot-line-tree .nbcot-line-color-swatch.is-selected {
+        outline: 2px solid #2f80ed;
+        outline-offset: 2px;
     }
     .nbcot-line-tree tr.nbcot-line-tracked > td {
         background: #eaf4ff;
@@ -96,23 +144,54 @@
             <button type="button" class="btn btn-link btn-sm" data-line-action="close-column-config" aria-label="Close">×</button>
         </div>
         <div class="nbcot-line-config-warning">Column choices may affect loading times.</div>
-        <p class="text-muted">Use the controls below to select which columns to display.</p>
-        <div class="nbcot-line-config-options">
-            {% if tracking_mode %}<label><input type="checkbox" data-column-choice="track" checked> Track</label>{% endif %}
-            <label><input type="checkbox" data-column-choice="line" checked> Line</label>
-            <label><input type="checkbox" data-column-choice="sku" checked> SKU</label>
-            <label><input type="checkbox" data-column-choice="description" checked> Description</label>
-            <label><input type="checkbox" data-column-choice="status" checked> Status</label>
-            <label><input type="checkbox" data-column-choice="shipment" checked> Shipment</label>
-            {% if not tracking_mode %}<label><input type="checkbox" data-column-choice="tracked" checked> Is Tracked</label>{% endif %}
-            <label><input type="checkbox" data-column-choice="ordered" checked> Qty</label>
-            <label><input type="checkbox" data-column-choice="fulfilled" checked> Fulfilled</label>
-            <label><input type="checkbox" data-column-choice="backordered" checked> Backorder</label>
-            <label><input type="checkbox" data-column-choice="promised" checked> Promised</label>
-            <label><input type="checkbox" data-column-choice="estimated" checked> Estimated</label>
-            <label><input type="checkbox" data-column-choice="serial" checked> Serial</label>
-            <label><input type="checkbox" data-column-choice="carrier" checked> Carrier</label>
-            <label><input type="checkbox" data-column-choice="tracking" checked> Tracking</label>
+        <p class="text-muted">Use the controls below to arrange columns and select which columns to display.</p>
+        <div class="nbcot-line-config-options" data-line-config-options>
+            {% if tracking_mode %}<div class="nbcot-line-config-row" data-column-option="track"><label><input type="checkbox" data-column-choice="track" checked> Track</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>{% endif %}
+            <div class="nbcot-line-config-row" data-column-option="line"><label><input type="checkbox" data-column-choice="line" checked> Line</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="sku"><label><input type="checkbox" data-column-choice="sku" checked> SKU</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="description"><label><input type="checkbox" data-column-choice="description" checked> Description</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="status"><label><input type="checkbox" data-column-choice="status" checked> Status</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="shipment"><label><input type="checkbox" data-column-choice="shipment" checked> Shipment</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            {% if not tracking_mode %}<div class="nbcot-line-config-row" data-column-option="tracked"><label><input type="checkbox" data-column-choice="tracked" checked> Is Tracked</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>{% endif %}
+            <div class="nbcot-line-config-row" data-column-option="ordered"><label><input type="checkbox" data-column-choice="ordered" checked> Qty</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="fulfilled"><label><input type="checkbox" data-column-choice="fulfilled" checked> Fulfilled</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="backordered"><label><input type="checkbox" data-column-choice="backordered" checked> Backorder</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="promised"><label><input type="checkbox" data-column-choice="promised" checked> Promised</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="estimated"><label><input type="checkbox" data-column-choice="estimated" checked> Estimated</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="serial"><label><input type="checkbox" data-column-choice="serial" checked> Serial</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="parent_serial"><label><input type="checkbox" data-column-choice="parent_serial" checked> Parent Serial</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="mac"><label><input type="checkbox" data-column-choice="mac" checked> MAC</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="imei"><label><input type="checkbox" data-column-choice="imei" checked> IMEI</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="instance"><label><input type="checkbox" data-column-choice="instance" checked> Instance</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="license_key"><label><input type="checkbox" data-column-choice="license_key" checked> License Key</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="cloud_id"><label><input type="checkbox" data-column-choice="cloud_id" checked> Cloud ID</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="contract_number"><label><input type="checkbox" data-column-choice="contract_number" checked> Contract</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="carrier"><label><input type="checkbox" data-column-choice="carrier" checked> Carrier</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="tracking"><label><input type="checkbox" data-column-choice="tracking" checked> Tracking Number</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="tracking_url"><label><input type="checkbox" data-column-choice="tracking_url" checked> Carrier URL</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="proof_of_delivery"><label><input type="checkbox" data-column-choice="proof_of_delivery" checked> Proof Of Delivery URL</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+        </div>
+        <div class="nbcot-line-color-controls">
+            <h4 style="margin-top: 0;">Line Coloring</h4>
+            <label for="{{ table_id }}-tracked-color">Tracked line color</label>
+            <div class="nbcot-line-color-picker">
+                <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
+                <span class="text-muted">Used for tracked lines unless a row-specific color is set.</span>
+            </div>
+            <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
+            </div>
+            {% if tracking_mode %}
+                <div class="nbcot-line-color-actions">
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
+                </div>
+            {% endif %}
         </div>
         <div class="nbcot-line-config-actions">
             <button type="button" class="btn btn-primary btn-sm" data-line-action="save-column-config">Save</button>
@@ -143,8 +222,17 @@
                     <th data-column-key="promised"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="promised">Promised</button></th>
                     <th data-column-key="estimated"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="estimated">Estimated</button></th>
                     <th data-column-key="serial"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="serial">Serial</button></th>
+                    <th data-column-key="parent_serial"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="parent-serial">Parent Serial</button></th>
+                    <th data-column-key="mac"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="mac">MAC</button></th>
+                    <th data-column-key="imei"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="imei">IMEI</button></th>
+                    <th data-column-key="instance"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="instance">Instance</button></th>
+                    <th data-column-key="license_key"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="license-key">License Key</button></th>
+                    <th data-column-key="cloud_id"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="cloud-id">Cloud ID</button></th>
+                    <th data-column-key="contract_number"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="contract-number">Contract</button></th>
                     <th data-column-key="carrier"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="carrier">Carrier</button></th>
                     <th data-column-key="tracking"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracking">Tracking</button></th>
+                    <th data-column-key="tracking_url"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracking-url">Carrier URL</button></th>
+                    <th data-column-key="proof_of_delivery"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="proof-of-delivery">Proof Of Delivery</button></th>
                 </tr>
                 <tr>
                     {% if tracking_mode %}
@@ -164,8 +252,17 @@
                     <th data-column-key="promised"><input type="search" class="form-control input-sm" data-line-filter="promised"></th>
                     <th data-column-key="estimated"><input type="search" class="form-control input-sm" data-line-filter="estimated"></th>
                     <th data-column-key="serial"><input type="search" class="form-control input-sm" data-line-filter="serial"></th>
+                    <th data-column-key="parent_serial"><input type="search" class="form-control input-sm" data-line-filter="parent-serial"></th>
+                    <th data-column-key="mac"><input type="search" class="form-control input-sm" data-line-filter="mac"></th>
+                    <th data-column-key="imei"><input type="search" class="form-control input-sm" data-line-filter="imei"></th>
+                    <th data-column-key="instance"><input type="search" class="form-control input-sm" data-line-filter="instance"></th>
+                    <th data-column-key="license_key"><input type="search" class="form-control input-sm" data-line-filter="license-key"></th>
+                    <th data-column-key="cloud_id"><input type="search" class="form-control input-sm" data-line-filter="cloud-id"></th>
+                    <th data-column-key="contract_number"><input type="search" class="form-control input-sm" data-line-filter="contract-number"></th>
                     <th data-column-key="carrier"><input type="search" class="form-control input-sm" data-line-filter="carrier"></th>
                     <th data-column-key="tracking"><input type="search" class="form-control input-sm" data-line-filter="tracking"></th>
+                    <th data-column-key="tracking_url"><input type="search" class="form-control input-sm" data-line-filter="tracking-url"></th>
+                    <th data-column-key="proof_of_delivery"><input type="search" class="form-control input-sm" data-line-filter="proof-of-delivery"></th>
                 </tr>
             </thead>
             <tbody>
@@ -188,11 +285,18 @@
                         data-promised="{{ row.line.promised_delivery_date|default:'' }}"
                         data-estimated="{{ row.line.estimated_delivery_date|default:'' }}"
                         data-serial="{{ row.line.serial_number|default:'' }}"
+                        data-parent-serial="{{ row.line.parent_serial_number|default:'' }}"
                         data-mac="{{ row.line.mac_address|default:'' }}"
+                        data-imei="{{ row.line.imei_number|default:'' }}"
                         data-instance="{{ row.line.instance_number|default:'' }}"
+                        data-license-key="{{ row.line.license_key|default:'' }}"
+                        data-cloud-id="{{ row.line.cloud_id|default:'' }}"
+                        data-contract-number="{{ row.line.contract_number|default:'' }}"
                         data-ship-set="{{ row.line.ship_set|default:'' }}"
                         data-carrier="{{ row.line.carrier|default:'' }}"
                         data-tracking="{{ row.line.tracking_number|default:'' }}"
+                        data-tracking-url="{{ row.line.tracking_url|default:'' }}"
+                        data-proof-of-delivery="{{ row.line.proof_of_delivery_url|default:'' }}"
                         data-actual-delivery="{{ row.line.actual_delivery_date|default:'' }}"
                         data-estimated-ship="{{ row.line.estimated_ship_date|default:'' }}"
                     >
@@ -226,18 +330,33 @@
                         <td data-column-key="promised">{{ row.line.promised_delivery_date|default:"-" }}</td>
                         <td data-column-key="estimated">{{ row.line.estimated_delivery_date|default:"-" }}</td>
                         <td data-column-key="serial">{{ row.line.serial_number|default:"-" }}</td>
+                        <td data-column-key="parent_serial">{{ row.line.parent_serial_number|default:"-" }}</td>
+                        <td data-column-key="mac">{{ row.line.mac_address|default:"-" }}</td>
+                        <td data-column-key="imei">{{ row.line.imei_number|default:"-" }}</td>
+                        <td data-column-key="instance">{{ row.line.instance_number|default:"-" }}</td>
+                        <td data-column-key="license_key">{{ row.line.license_key|default:"-" }}</td>
+                        <td data-column-key="cloud_id">{{ row.line.cloud_id|default:"-" }}</td>
+                        <td data-column-key="contract_number">{{ row.line.contract_number|default:"-" }}</td>
                         <td data-column-key="carrier">{{ row.line.carrier|default:"-" }}</td>
-                        <td data-column-key="tracking">
+                        <td data-column-key="tracking">{{ row.line.tracking_number|default:"-" }}</td>
+                        <td data-column-key="tracking_url">
                             {% if row.line.tracking_url %}
-                                <a href="{{ row.line.tracking_url }}" target="_blank" rel="noopener noreferrer">{{ row.line.tracking_number|default:row.line.tracking_url }}</a>
+                                <a href="{{ row.line.tracking_url }}" target="_blank" rel="noopener noreferrer">{{ row.line.tracking_url }}</a>
                             {% else %}
-                                {{ row.line.tracking_number|default:"-" }}
+                                -
+                            {% endif %}
+                        </td>
+                        <td data-column-key="proof_of_delivery">
+                            {% if row.line.proof_of_delivery_url %}
+                                <a href="{{ row.line.proof_of_delivery_url }}" target="_blank" rel="noopener noreferrer">{{ row.line.proof_of_delivery_url }}</a>
+                            {% else %}
+                                -
                             {% endif %}
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="15" class="text-muted">{{ empty_message|default:"No line items were returned." }}</td>
+                        <td colspan="26" class="text-muted">{{ empty_message|default:"No line items were returned." }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -285,6 +404,10 @@
             var collapsed = new Set();
             var hiddenColumns = new Set();
             var storageKey = "nbcot-line-columns:" + tree.getAttribute("data-line-tree");
+            var defaultTrackedColor = "#eaf4ff";
+            var trackedColor = defaultTrackedColor;
+            var rowColors = {};
+            var columnOrder = [];
             var sortState = {key: "line", type: "line", direction: "asc"};
 
             function childrenOf(parentId) {
@@ -375,6 +498,74 @@
                 applyVisibility();
             }
 
+            function defaultColumnOrder() {
+                return Array.from(tree.querySelectorAll("[data-column-option]")).map(function (element) {
+                    return element.getAttribute("data-column-option");
+                });
+            }
+
+            function normalizeColumnOrder(order) {
+                var known = defaultColumnOrder();
+                var seen = new Set();
+                var normalized = [];
+                (order || []).forEach(function (key) {
+                    if (known.indexOf(key) !== -1 && !seen.has(key)) {
+                        normalized.push(key);
+                        seen.add(key);
+                    }
+                });
+                known.forEach(function (key) {
+                    if (!seen.has(key)) {
+                        normalized.push(key);
+                    }
+                });
+                return normalized;
+            }
+
+            function applyColumnOrder() {
+                var options = tree.querySelector("[data-line-config-options]");
+                columnOrder = normalizeColumnOrder(columnOrder);
+                columnOrder.forEach(function (key) {
+                    var option = options.querySelector("[data-column-option='" + key + "']");
+                    if (option) {
+                        options.appendChild(option);
+                    }
+                });
+                tree.querySelectorAll("thead tr, tbody tr").forEach(function (row) {
+                    columnOrder.forEach(function (key) {
+                        var cell = Array.from(row.children).find(function (child) {
+                            return child.getAttribute("data-column-key") === key;
+                        });
+                        if (cell) {
+                            row.appendChild(cell);
+                        }
+                    });
+                });
+            }
+
+            function applyRowColors() {
+                rows.forEach(function (row) {
+                    var rowId = row.getAttribute("data-line-row");
+                    var color = rowColors[rowId] || (row.classList.contains("nbcot-line-tracked") ? trackedColor : "");
+                    Array.from(row.children).forEach(function (cell) {
+                        cell.style.backgroundColor = color || "";
+                    });
+                });
+                tree.querySelectorAll("[data-line-color-picker]").forEach(function (input) {
+                    input.value = trackedColor;
+                });
+                tree.querySelectorAll("[data-line-color-swatch]").forEach(function (button) {
+                    button.classList.toggle("is-selected", button.getAttribute("data-line-color-swatch") === trackedColor);
+                });
+            }
+
+            function selectedRows() {
+                return rows.filter(function (row) {
+                    var checkbox = row.querySelector("input[name='line_keys']");
+                    return checkbox && checkbox.checked;
+                });
+            }
+
             function applyColumnVisibility() {
                 tree.querySelectorAll("[data-column-key]").forEach(function (element) {
                     var key = element.getAttribute("data-column-key");
@@ -383,20 +574,40 @@
                 tree.querySelectorAll("[data-column-choice]").forEach(function (input) {
                     input.checked = !hiddenColumns.has(input.getAttribute("data-column-choice"));
                 });
+                applyRowColors();
             }
 
-            function saveColumnVisibility() {
-                window.localStorage.setItem(storageKey, JSON.stringify(Array.from(hiddenColumns)));
+            function saveColumnConfig() {
+                window.localStorage.setItem(storageKey, JSON.stringify({
+                    hidden: Array.from(hiddenColumns),
+                    order: columnOrder,
+                    trackedColor: trackedColor,
+                    rowColors: rowColors,
+                }));
             }
 
-            function loadColumnVisibility() {
+            function loadColumnConfig() {
                 try {
-                    JSON.parse(window.localStorage.getItem(storageKey) || "[]").forEach(function (key) {
-                        hiddenColumns.add(key);
-                    });
+                    var config = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
+                    if (Array.isArray(config)) {
+                        config.forEach(function (key) {
+                            hiddenColumns.add(key);
+                        });
+                    } else {
+                        (config.hidden || []).forEach(function (key) {
+                            hiddenColumns.add(key);
+                        });
+                        columnOrder = normalizeColumnOrder(config.order || []);
+                        trackedColor = config.trackedColor || defaultTrackedColor;
+                        rowColors = config.rowColors || {};
+                    }
                 } catch (error) {
                     hiddenColumns.clear();
+                    columnOrder = [];
+                    trackedColor = defaultTrackedColor;
+                    rowColors = {};
                 }
+                applyColumnOrder();
                 applyColumnVisibility();
             }
 
@@ -472,6 +683,52 @@
                     applyColumnVisibility();
                 });
             });
+            tree.querySelectorAll("[data-column-move]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    var row = button.closest("[data-column-option]");
+                    var key = row.getAttribute("data-column-option");
+                    var index = columnOrder.indexOf(key);
+                    var direction = button.getAttribute("data-column-move");
+                    var targetIndex = direction === "up" ? index - 1 : index + 1;
+                    if (index === -1 || targetIndex < 0 || targetIndex >= columnOrder.length) {
+                        return;
+                    }
+                    columnOrder[index] = columnOrder[targetIndex];
+                    columnOrder[targetIndex] = key;
+                    applyColumnOrder();
+                    applyColumnVisibility();
+                });
+            });
+            tree.querySelectorAll("[data-line-color-picker]").forEach(function (input) {
+                input.addEventListener("input", function () {
+                    trackedColor = input.value || defaultTrackedColor;
+                    applyRowColors();
+                });
+            });
+            tree.querySelectorAll("[data-line-color-swatch]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    trackedColor = button.getAttribute("data-line-color-swatch") || defaultTrackedColor;
+                    applyRowColors();
+                });
+            });
+            var applyColorSelectedButton = tree.querySelector("[data-line-action='apply-color-selected']");
+            if (applyColorSelectedButton) {
+                applyColorSelectedButton.addEventListener("click", function () {
+                    selectedRows().forEach(function (row) {
+                        rowColors[row.getAttribute("data-line-row")] = trackedColor;
+                    });
+                    applyRowColors();
+                });
+            }
+            var clearColorSelectedButton = tree.querySelector("[data-line-action='clear-color-selected']");
+            if (clearColorSelectedButton) {
+                clearColorSelectedButton.addEventListener("click", function () {
+                    selectedRows().forEach(function (row) {
+                        delete rowColors[row.getAttribute("data-line-row")];
+                    });
+                    applyRowColors();
+                });
+            }
             var panel = tree.querySelector("[data-line-config-panel]");
             tree.querySelector("[data-line-action='open-column-config']").addEventListener("click", function () {
                 panel.classList.add("is-open");
@@ -480,15 +737,20 @@
                 panel.classList.remove("is-open");
             });
             tree.querySelector("[data-line-action='save-column-config']").addEventListener("click", function () {
-                saveColumnVisibility();
+                saveColumnConfig();
                 panel.classList.remove("is-open");
             });
             tree.querySelector("[data-line-action='reset-column-config']").addEventListener("click", function () {
                 hiddenColumns.clear();
+                columnOrder = defaultColumnOrder();
+                trackedColor = defaultTrackedColor;
+                rowColors = {};
                 window.localStorage.removeItem(storageKey);
+                applyColumnOrder();
                 applyColumnVisibility();
             });
-            loadColumnVisibility();
+            columnOrder = defaultColumnOrder();
+            loadColumnConfig();
             sortAndRender();
         });
     }());

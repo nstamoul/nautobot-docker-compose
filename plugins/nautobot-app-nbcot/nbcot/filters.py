@@ -30,6 +30,8 @@ class CiscoOrderFilterSet(NautobotFilterSet):  # pylint: disable=too-many-ancest
             "account_name",
             "project_number",
             "status",
+            "web_order_url",
+            "cisco_sales_order_url",
             "is_tracked",
             "is_archived",
             "created",
@@ -59,18 +61,26 @@ class CiscoOrderFilterSet(NautobotFilterSet):  # pylint: disable=too-many-ancest
             | Q(lifecycle_state__icontains=value)
             | Q(last_sync_status__icontains=value)
             | Q(last_sync_message__icontains=value)
+            | Q(web_order_url__icontains=value)
+            | Q(cisco_sales_order_url__icontains=value)
             | Q(lines__line_number__icontains=value)
             | Q(lines__sku__icontains=value)
             | Q(lines__description__icontains=value)
             | Q(lines__status__icontains=value)
             | Q(lines__shipment_status__icontains=value)
             | Q(lines__serial_number__icontains=value)
+            | Q(lines__parent_serial_number__icontains=value)
             | Q(lines__mac_address__icontains=value)
+            | Q(lines__imei_number__icontains=value)
             | Q(lines__instance_number__icontains=value)
+            | Q(lines__license_key__icontains=value)
+            | Q(lines__cloud_id__icontains=value)
+            | Q(lines__contract_number__icontains=value)
             | Q(lines__ship_set__icontains=value)
             | Q(lines__carrier__icontains=value)
             | Q(lines__tracking_number__icontains=value)
             | Q(lines__tracking_url__icontains=value)
+            | Q(lines__proof_of_delivery_url__icontains=value)
         ).distinct()
 
 

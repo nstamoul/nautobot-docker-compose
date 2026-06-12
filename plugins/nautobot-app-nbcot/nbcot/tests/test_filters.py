@@ -18,14 +18,21 @@ class CiscoOrderFilterTest(TestCase):
             status="Submitted",
             project_number="PRJ-ALPHA",
             notes="Firewall rollout for ministry sites",
+            web_order_url="https://cisco.example/web-order/SO-1001",
+            cisco_sales_order_url="https://cisco.example/sales-order/SO-1001",
         )
         fixtures.create_line(
             order,
             line_key="1.0",
             sku="FPR-1210",
             serial_number="WVT294200FF",
+            parent_serial_number="PARENT-WVT294200FF",
             carrier="DHL",
             tracking_number="TRACK-ALPHA",
+            imei_number="IMEI-ALPHA",
+            license_key="LIC-ALPHA",
+            cloud_id="CLOUD-ALPHA",
+            contract_number="CONTRACT-ALPHA",
         )
         fixtures.create_ciscoorder(order_number="SO-1002", account_name="Globex", status="Shipped", is_archived=True)
 
@@ -37,6 +44,12 @@ class CiscoOrderFilterTest(TestCase):
         self.assertEqual(filters.CiscoOrderFilterSet({"q": "PRJ-ALPHA"}, queryset).qs.count(), 1)
         self.assertEqual(filters.CiscoOrderFilterSet({"q": "TRACK-ALPHA"}, queryset).qs.count(), 1)
         self.assertEqual(filters.CiscoOrderFilterSet({"q": "WVT294200FF"}, queryset).qs.count(), 1)
+        self.assertEqual(filters.CiscoOrderFilterSet({"q": "PARENT-WVT294200FF"}, queryset).qs.count(), 1)
+        self.assertEqual(filters.CiscoOrderFilterSet({"q": "IMEI-ALPHA"}, queryset).qs.count(), 1)
+        self.assertEqual(filters.CiscoOrderFilterSet({"q": "LIC-ALPHA"}, queryset).qs.count(), 1)
+        self.assertEqual(filters.CiscoOrderFilterSet({"q": "CLOUD-ALPHA"}, queryset).qs.count(), 1)
+        self.assertEqual(filters.CiscoOrderFilterSet({"q": "CONTRACT-ALPHA"}, queryset).qs.count(), 1)
+        self.assertEqual(filters.CiscoOrderFilterSet({"q": "web-order/SO-1001"}, queryset).qs.count(), 1)
 
     def test_default_filter_hides_archived_orders(self):
         """Tracked order list should hide archived orders unless explicitly requested."""

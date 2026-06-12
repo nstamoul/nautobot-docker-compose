@@ -20,6 +20,8 @@ class CiscoOrderTable(BaseTable):
     promised_delivery_date = tables.DateColumn()
     estimated_delivery_date = tables.DateColumn()
     last_synced_at = tables.DateTimeColumn(format="Y-m-d H:i:s")
+    web_order_url = tables.URLColumn(verbose_name="Web Order URL")
+    cisco_sales_order_url = tables.URLColumn(verbose_name="Cisco Sales Order URL")
     actions = tables.Column(empty_values=(), orderable=False)
 
     class Meta(BaseTable.Meta):
@@ -40,6 +42,8 @@ class CiscoOrderTable(BaseTable):
             "is_archived",
             "promised_delivery_date",
             "estimated_delivery_date",
+            "web_order_url",
+            "cisco_sales_order_url",
             "last_synced_at",
         )
 
@@ -94,6 +98,18 @@ class CiscoOrderLineTable(BaseTable):
             "quantity_backordered",
             "promised_delivery_date",
             "estimated_delivery_date",
+            "serial_number",
+            "parent_serial_number",
+            "mac_address",
+            "imei_number",
+            "instance_number",
+            "license_key",
+            "cloud_id",
+            "contract_number",
+            "carrier",
+            "tracking_number",
+            "tracking_url",
+            "proof_of_delivery_url",
         )
         default_columns = fields
 

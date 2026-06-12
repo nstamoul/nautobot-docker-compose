@@ -505,6 +505,8 @@ class CiscoOrderUIViewSet(NautobotUIViewSet):
                     "lifecycle_state",
                     "is_tracked",
                     "is_archived",
+                    "web_order_url",
+                    "cisco_sales_order_url",
                     "open_exception_count",
                 ],
             ),

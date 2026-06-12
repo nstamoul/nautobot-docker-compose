@@ -341,7 +341,11 @@ class CiscoPayloadNormalizerTest(TestCase):
         """Detail payload should capture Cisco serial and freight tracking attributes."""
         snapshot = self.normalizer.normalize_order_details(
             {
-                "ciscoSalesOrderReference": {"ciscoSalesOrderId": "119745185"},
+                "webOrderURL": "https://cisco.example/web-order/119745185",
+                "ciscoSalesOrderReference": {
+                    "ciscoSalesOrderId": "119745185",
+                    "ciscoSalesOrderURL": "https://cisco.example/sales-order/119745185",
+                },
                 "lines": [
                     {
                         "orderLineReference": {"lineId": "server-1", "userInterfaceLineId": "1.1"},
@@ -351,8 +355,13 @@ class CiscoPayloadNormalizerTest(TestCase):
                         "serialNumberAttributes": [
                             {
                                 "serialNumber": ["WVT294200FF"],
+                                "parentSerialNumber": "PARENT-WVT294200FF",
                                 "macAddresses": ["44C20C2C319C"],
+                                "imeiNumber": "IMEI-12345",
                                 "instanceNumber": "6103074542",
+                                "licenseKey": "LIC-12345",
+                                "cloudId": "CLOUD-12345",
+                                "contractNumber": "205093077",
                             }
                         ],
                         "shippingAttributes": {
@@ -378,10 +387,17 @@ class CiscoPayloadNormalizerTest(TestCase):
             }
         )
 
+        self.assertEqual(snapshot.web_order_url, "https://cisco.example/web-order/119745185")
+        self.assertEqual(snapshot.cisco_sales_order_url, "https://cisco.example/sales-order/119745185")
         line = snapshot.lines[0]
         self.assertEqual(line.serial_number, "WVT294200FF")
+        self.assertEqual(line.parent_serial_number, "PARENT-WVT294200FF")
         self.assertEqual(line.mac_address, "44C20C2C319C")
+        self.assertEqual(line.imei_number, "IMEI-12345")
         self.assertEqual(line.instance_number, "6103074542")
+        self.assertEqual(line.license_key, "LIC-12345")
+        self.assertEqual(line.cloud_id, "CLOUD-12345")
+        self.assertEqual(line.contract_number, "205093077")
         self.assertEqual(line.ship_set, "1")
         self.assertEqual(line.quantity_fulfilled, 1)
         self.assertEqual(line.carrier, "SCHENKER LTL STANDARD EU1")
@@ -448,6 +464,11 @@ class CiscoOrderSynchronizerTest(TestCase):
         """Synchronizer should store normalized serial and tracking values on order lines."""
         payload = {
             "orderNumber": "SO-9004",
+            "webOrderURL": "https://cisco.example/web-order/SO-9004",
+            "ciscoSalesOrderReference": {
+                "ciscoSalesOrderId": "SO-9004",
+                "ciscoSalesOrderURL": "https://cisco.example/sales-order/SO-9004",
+            },
             "lines": [
                 {
                     "lineKey": "server-1",
@@ -456,8 +477,13 @@ class CiscoOrderSynchronizerTest(TestCase):
                     "serialNumberAttributes": [
                         {
                             "serialNumber": ["WVT294200FF"],
+                            "parentSerialNumber": "PARENT-WVT294200FF",
                             "macAddresses": ["44C20C2C319C"],
+                            "imeiNumber": "IMEI-12345",
                             "instanceNumber": "6103074542",
+                            "licenseKey": "LIC-12345",
+                            "cloudId": "CLOUD-12345",
+                            "contractNumber": "205093077",
                         }
                     ],
                     "shippingAttributes": {
@@ -481,10 +507,17 @@ class CiscoOrderSynchronizerTest(TestCase):
 
         order, _changes = synchronizer.sync_order_by_number("SO-9004")
 
+        self.assertEqual(order.web_order_url, "https://cisco.example/web-order/SO-9004")
+        self.assertEqual(order.cisco_sales_order_url, "https://cisco.example/sales-order/SO-9004")
         line = order.lines.get(line_key="server-1")
         self.assertEqual(line.serial_number, "WVT294200FF")
+        self.assertEqual(line.parent_serial_number, "PARENT-WVT294200FF")
         self.assertEqual(line.mac_address, "44C20C2C319C")
+        self.assertEqual(line.imei_number, "IMEI-12345")
         self.assertEqual(line.instance_number, "6103074542")
+        self.assertEqual(line.license_key, "LIC-12345")
+        self.assertEqual(line.cloud_id, "CLOUD-12345")
+        self.assertEqual(line.contract_number, "205093077")
         self.assertEqual(line.ship_set, "1")
         self.assertEqual(line.carrier, "SCHENKER LTL STANDARD EU1")
         self.assertEqual(line.tracking_number, "119745185/1")

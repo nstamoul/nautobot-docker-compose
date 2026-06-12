@@ -93,8 +93,13 @@ class NormalizedOrderLine:
     promised_delivery_date: date | None = None
     estimated_delivery_date: date | None = None
     serial_number: str = ""
+    parent_serial_number: str = ""
     mac_address: str = ""
+    imei_number: str = ""
     instance_number: str = ""
+    license_key: str = ""
+    cloud_id: str = ""
+    contract_number: str = ""
     ship_set: str = ""
     carrier: str = ""
     tracking_number: str = ""
@@ -122,6 +127,8 @@ class NormalizedOrderSnapshot:
     ordered_at: datetime | None = None
     last_event_at: datetime | None = None
     open_exception_count: int = 0
+    web_order_url: str = ""
+    cisco_sales_order_url: str = ""
     exceptions: list[dict[str, Any]] = field(default_factory=list)
     lines: list[NormalizedOrderLine] = field(default_factory=list)
     raw_payload: dict[str, Any] = field(default_factory=dict)
@@ -330,8 +337,21 @@ class CiscoPayloadNormalizer:
                         )
                     ),
                     serial_number=str(_first_list_item(first_serial_attributes.get("serialNumber")) or ""),
+                    parent_serial_number=str(
+                        _first_value(
+                            first_serial_attributes,
+                            ("parentSerialNumber",),
+                            ("parent_serial_number",),
+                            default="",
+                        )
+                        or ""
+                    ),
                     mac_address=str(_first_list_item(first_serial_attributes.get("macAddresses")) or ""),
+                    imei_number=str(first_serial_attributes.get("imeiNumber") or ""),
                     instance_number=str(first_serial_attributes.get("instanceNumber") or ""),
+                    license_key=str(first_serial_attributes.get("licenseKey") or ""),
+                    cloud_id=str(first_serial_attributes.get("cloudId") or ""),
+                    contract_number=str(first_serial_attributes.get("contractNumber") or ""),
                     ship_set=str(
                         _first_value(
                             raw_line,
@@ -445,6 +465,16 @@ class CiscoPayloadNormalizer:
             open_exception_count=_to_int(
                 _first_value(payload, ("openExceptionCount",), ("header", "openExceptionCount"), default=len(exceptions)),
                 default=len(exceptions),
+            ),
+            web_order_url=str(_first_value(payload, ("webOrderURL",), ("webOrderUrl",), default="") or ""),
+            cisco_sales_order_url=str(
+                _first_value(
+                    payload,
+                    ("ciscoSalesOrderReference", "ciscoSalesOrderURL"),
+                    ("ciscoSalesOrderReference", "ciscoSalesOrderUrl"),
+                    default="",
+                )
+                or ""
             ),
             exceptions=exceptions,
             lines=lines,

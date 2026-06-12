@@ -56,6 +56,7 @@ query GetOrderDetails($input: OrderSearchInput) {
         ciscoSalesOrderId
         ciscoSalesOrderURL
       }
+      webOrderURL
       parties {
         id
         name
@@ -96,8 +97,13 @@ query GetOrderDetails($input: OrderSearchInput) {
         }
         serialNumberAttributes {
           serialNumber
+          parentSerialNumber
           macAddresses
+          imeiNumber
           instanceNumber
+          licenseKey
+          cloudId
+          contractNumber
         }
         shippingAttributes {
           shipSetStatus

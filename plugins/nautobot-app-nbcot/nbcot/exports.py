@@ -32,6 +32,8 @@ ORDER_HEADERS = [
     "Last Synced At",
     "Last Sync Status",
     "Notification Recipients",
+    "Web Order URL",
+    "Cisco Sales Order URL",
 ]
 
 LINE_HEADERS = [
@@ -45,8 +47,13 @@ LINE_HEADERS = [
     "Status",
     "Shipment Status",
     "Serial Number",
+    "Parent Serial Number",
     "MAC Address",
+    "IMEI Number",
     "Instance Number",
+    "License Key",
+    "Cloud ID",
+    "Contract Number",
     "Carrier",
     "Tracking Number",
     "Tracking URL",
@@ -120,6 +127,8 @@ def _append_order_summary(orders_sheet, order, sheet_title: str):
             order.last_synced_at.isoformat() if order.last_synced_at else "",
             order.last_sync_status,
             order.notification_recipients,
+            order.web_order_url,
+            order.cisco_sales_order_url,
         ]
     )
     order_cell = orders_sheet.cell(row=orders_sheet.max_row, column=1)
@@ -154,8 +163,13 @@ def _append_order_lines(sheet, order):
                 line.status,
                 line.shipment_status,
                 line.serial_number,
+                line.parent_serial_number,
                 line.mac_address,
+                line.imei_number,
                 line.instance_number,
+                line.license_key,
+                line.cloud_id,
+                line.contract_number,
                 line.carrier,
                 line.tracking_number,
                 line.tracking_url,

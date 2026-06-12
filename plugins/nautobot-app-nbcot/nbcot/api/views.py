@@ -27,8 +27,17 @@ class CiscoOrderLineViewSet(NautobotModelViewSet):  # pylint: disable=too-many-a
         "status",
         "shipment_status",
         "serial_number",
+        "parent_serial_number",
+        "mac_address",
+        "imei_number",
+        "instance_number",
+        "license_key",
+        "cloud_id",
+        "contract_number",
         "carrier",
         "tracking_number",
+        "tracking_url",
+        "proof_of_delivery_url",
     )
 
 

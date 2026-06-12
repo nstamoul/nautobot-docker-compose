@@ -19,6 +19,8 @@ class CiscoOrderExportTest(TestCase):
             project_number="PRJ-9100",
             notes="Important rollout",
             notification_recipients="ops@example.com",
+            web_order_url="https://cisco.example/web-order/SO-9100",
+            cisco_sales_order_url="https://cisco.example/sales-order/SO-9100",
         )
         fixtures.create_line(order, line_key="major", line_number="1.0", sku="MAJOR-SKU", is_tracked=True)
         fixtures.create_line(
@@ -27,8 +29,17 @@ class CiscoOrderExportTest(TestCase):
             line_number="1.0.1",
             sku="MINOR-SKU",
             serial_number="SER-9100",
+            parent_serial_number="PARENT-SER-9100",
+            mac_address="MAC-9100",
+            imei_number="IMEI-9100",
+            instance_number="INSTANCE-9100",
+            license_key="LICENSE-9100",
+            cloud_id="CLOUD-9100",
+            contract_number="CONTRACT-9100",
+            carrier="DHL",
             tracking_number="TRACK-9100",
             tracking_url="https://carrier.example/TRACK-9100",
+            proof_of_delivery_url="https://carrier.example/pod/TRACK-9100",
         )
 
         content = build_orders_workbook([order])
@@ -41,10 +52,22 @@ class CiscoOrderExportTest(TestCase):
         self.assertEqual(order_sheet["A2"].hyperlink.location, "'SO-9100'!A1")
         self.assertEqual(order_sheet["D2"].value, "PRJ-9100")
         self.assertEqual(order_sheet["E2"].value, "Important rollout")
+        self.assertEqual(order_sheet["S2"].value, "https://cisco.example/web-order/SO-9100")
+        self.assertEqual(order_sheet["T2"].value, "https://cisco.example/sales-order/SO-9100")
         self.assertEqual(line_sheet["E2"].value, "Major")
         self.assertEqual(line_sheet["E3"].value, "Minor")
         self.assertEqual(line_sheet["J3"].value, "SER-9100")
-        self.assertEqual(line_sheet["N3"].value, "TRACK-9100")
+        self.assertEqual(line_sheet["K3"].value, "PARENT-SER-9100")
+        self.assertEqual(line_sheet["L3"].value, "MAC-9100")
+        self.assertEqual(line_sheet["M3"].value, "IMEI-9100")
+        self.assertEqual(line_sheet["N3"].value, "INSTANCE-9100")
+        self.assertEqual(line_sheet["O3"].value, "LICENSE-9100")
+        self.assertEqual(line_sheet["P3"].value, "CLOUD-9100")
+        self.assertEqual(line_sheet["Q3"].value, "CONTRACT-9100")
+        self.assertEqual(line_sheet["R3"].value, "DHL")
+        self.assertEqual(line_sheet["S3"].value, "TRACK-9100")
+        self.assertEqual(line_sheet["T3"].value, "https://carrier.example/TRACK-9100")
+        self.assertEqual(line_sheet["U3"].value, "https://carrier.example/pod/TRACK-9100")
 
     def test_export_creates_one_sheet_per_order_with_unique_safe_names(self):
         """Multi-order workbooks should use a linked summary and one sheet per order."""

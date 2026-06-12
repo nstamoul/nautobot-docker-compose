@@ -95,6 +95,8 @@ class CiscoOrderSynchronizer:
         order.last_synced_at = timezone.now()
         order.last_sync_status = SyncStatusChoices.SUCCESS
         order.last_sync_message = ""
+        order.web_order_url = snapshot.web_order_url
+        order.cisco_sales_order_url = snapshot.cisco_sales_order_url
         order.raw_payload = snapshot.raw_payload
         order.validated_save()
 
@@ -144,8 +146,13 @@ class CiscoOrderSynchronizer:
             line_obj.promised_delivery_date = line.promised_delivery_date
             line_obj.estimated_delivery_date = line.estimated_delivery_date
             line_obj.serial_number = line.serial_number
+            line_obj.parent_serial_number = line.parent_serial_number
             line_obj.mac_address = line.mac_address
+            line_obj.imei_number = line.imei_number
             line_obj.instance_number = line.instance_number
+            line_obj.license_key = line.license_key
+            line_obj.cloud_id = line.cloud_id
+            line_obj.contract_number = line.contract_number
             line_obj.ship_set = line.ship_set
             line_obj.carrier = line.carrier
             line_obj.tracking_number = line.tracking_number
