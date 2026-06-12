@@ -11,6 +11,9 @@ secret_file="/opt/_tools/_automation/__codex_tmp_project__/artifacts/nautobot-sh
 start_stack="${START_STACK:-1}"
 vault_tls_host="${VAULT_TLS_HOST:-vault.shms.local}"
 vault_tls_port="${VAULT_TLS_PORT:-8200}"
+shms_nautobot_image="${SHMS_NAUTOBOT_IMAGE:-ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot:main}"
+shms_vpn_image="${SHMS_VPN_IMAGE:-ghcr.io/nstamoul/nautobot-docker-compose/shms-vpn:main}"
+shms_vpn_control_api_image="${SHMS_VPN_CONTROL_API_IMAGE:-ghcr.io/nstamoul/nautobot-docker-compose/shms-vpn-control-api:main}"
 
 if [[ ! -f "${secret_file}" ]]; then
   echo "secret file not found: ${secret_file}" >&2
@@ -43,12 +46,15 @@ if not certs:
 ca_file.write_text(certs[-1] + "\n")
 PY
 
-python3 - <<'PY' "${tmpdir}" "${secret_file}"
+python3 - <<'PY' "${tmpdir}" "${secret_file}" "${shms_nautobot_image}" "${shms_vpn_image}" "${shms_vpn_control_api_image}"
 from pathlib import Path
 import sys
 
 outdir = Path(sys.argv[1])
 secret_file = Path(sys.argv[2])
+shms_nautobot_image = sys.argv[3]
+shms_vpn_image = sys.argv[4]
+shms_vpn_control_api_image = sys.argv[5]
 
 secrets = {}
 for line in secret_file.read_text().splitlines():
@@ -62,6 +68,9 @@ def compose_escape(value: str) -> str:
 
 local_env = """NAUTOBOT_VERSION=3.1.0
 PYTHON_VER=3.11
+SHMS_NAUTOBOT_IMAGE=__SHMS_NAUTOBOT_IMAGE__
+SHMS_VPN_IMAGE=__SHMS_VPN_IMAGE__
+SHMS_VPN_CONTROL_API_IMAGE=__SHMS_VPN_CONTROL_API_IMAGE__
 
 NAUTOBOT_ALLOWED_HOSTS=sot3.shms.local,sot.space.gr,nb-ha-01.shms.local,nb-ha-02.shms.local,localhost,127.0.0.1
 NAUTOBOT_CSRF_TRUSTED_ORIGINS=http://sot3.shms.local,https://sot.space.gr
@@ -133,6 +142,9 @@ PICONFIG_CA_BUNDLE=/opt/nautobot/certs/vault-ca.crt
 PICONFIG_VERIFY_TLS=true
 """
 local_env = local_env.replace("__VAULT_NAUTOBOT_TOKEN__", compose_escape(secrets["VAULT_NAUTOBOT_TOKEN"]))
+local_env = local_env.replace("__SHMS_NAUTOBOT_IMAGE__", compose_escape(shms_nautobot_image))
+local_env = local_env.replace("__SHMS_VPN_IMAGE__", compose_escape(shms_vpn_image))
+local_env = local_env.replace("__SHMS_VPN_CONTROL_API_IMAGE__", compose_escape(shms_vpn_control_api_image))
 
 creds_env = f"""NAUTOBOT_CREATE_SUPERUSER=false
 NAUTOBOT_DB_PASSWORD={compose_escape(secrets["NAUTOBOT_DB_PASSWORD"])}
@@ -159,6 +171,9 @@ PGPASSWORD=${{NAUTOBOT_DB_PASSWORD}}
 (outdir / ".env").write_text(
     "NAUTOBOT_VERSION=3.1.0\n"
     "PYTHON_VER=3.11\n"
+    f"SHMS_NAUTOBOT_IMAGE={compose_escape(shms_nautobot_image)}\n"
+    f"SHMS_VPN_IMAGE={compose_escape(shms_vpn_image)}\n"
+    f"SHMS_VPN_CONTROL_API_IMAGE={compose_escape(shms_vpn_control_api_image)}\n"
 )
 PY
 
@@ -196,7 +211,7 @@ ssh -o StrictHostKeyChecking=no "${remote_target}" "bash -lc '
   source .env
   set +a
   if [[ \"${start_stack}\" == \"1\" ]]; then
-    docker compose -f docker-compose.shms-app.yml build
+    docker compose -f docker-compose.shms-app.yml pull nautobot celery_worker celery_beat
     docker compose -f docker-compose.shms-app.yml run --rm nautobot nautobot-server post_upgrade
     if [[ \"${remote_host}\" == \"nb-ha-01\" ]]; then
       docker compose -f docker-compose.shms-app.yml up -d

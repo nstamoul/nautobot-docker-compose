@@ -14,11 +14,9 @@ x-shms-hosts: &shms-hosts
   - "nb-minio-03.shms.local:172.20.11.218"
   - "nb-minio-04.shms.local:172.20.11.219"
 
----
 services:
   vpn:
-    build:
-      context: "../vpn/vpn"
+    image: "${SHMS_VPN_IMAGE:?set SHMS_VPN_IMAGE}"
     privileged: true
     cap_add:
       - "NET_ADMIN"

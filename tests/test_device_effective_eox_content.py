@@ -100,7 +100,7 @@ def test_dockerfile_installs_versioned_ui_plugin_source():
     dockerfile = Path(__file__).resolve().parents[1] / "environments" / "Dockerfile"
     dockerfile_text = dockerfile.read_text()
 
-    assert "COPY ../plugins/nautobot_ui_plugin/__init__.py" in dockerfile_text
-    assert "COPY ../plugins/nautobot_ui_plugin/template_content.py" in dockerfile_text
+    assert "COPY plugins/nautobot_ui_plugin/__init__.py" in dockerfile_text
+    assert "COPY plugins/nautobot_ui_plugin/template_content.py" in dockerfile_text
     assert "COPY ../patches/nautobot_ui_plugin/__init__.py" not in dockerfile_text
     assert "COPY ../patches/nautobot_ui_plugin/template_content.py" not in dockerfile_text

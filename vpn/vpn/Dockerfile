@@ -37,12 +37,14 @@ RUN mkdir -p /etc/vpnc \
 
 # Install HashiCorp Vault CLI
 ARG VAULT_VERSION=1.15.4
+ARG TARGETARCH
 RUN cd /tmp \
- && wget -q "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" \
- && unzip "vault_${VAULT_VERSION}_linux_amd64.zip" \
+ && case "${TARGETARCH:-amd64}" in amd64|arm64) VAULT_ARCH="${TARGETARCH:-amd64}" ;; *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; esac \
+ && wget -q "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_${VAULT_ARCH}.zip" \
+ && unzip "vault_${VAULT_VERSION}_linux_${VAULT_ARCH}.zip" \
  && mv vault /usr/local/bin/vault \
  && chmod +x /usr/local/bin/vault \
- && rm -f "vault_${VAULT_VERSION}_linux_amd64.zip" \
+ && rm -f "vault_${VAULT_VERSION}_linux_${VAULT_ARCH}.zip" \
  && vault --version
 
 # Optional connectivity probe

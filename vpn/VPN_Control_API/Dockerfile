@@ -1,4 +1,5 @@
-FROM shms/nautobot:3.1.0-py3.11
+ARG SHMS_NAUTOBOT_IMAGE=ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot:main
+FROM ${SHMS_NAUTOBOT_IMAGE}
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1

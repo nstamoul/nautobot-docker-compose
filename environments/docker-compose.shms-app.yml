@@ -26,7 +26,7 @@ x-nautobot-build: &nautobot-build
     dockerfile: "environments/Dockerfile"
 
 x-nautobot-base: &nautobot-base
-  image: "shms/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}"
+  image: "${SHMS_NAUTOBOT_IMAGE:-ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot:main}"
   env_file:
     - path: "local.shms.env"
       required: true

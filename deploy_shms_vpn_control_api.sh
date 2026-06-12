@@ -22,7 +22,7 @@ Actions:
   --pull      Pull registry images referenced by the compose files.
   --activate  Start or update vpn-control-api on the explicitly named node.
 
-This script never builds images on HA nodes. Build and push images via GitLab CI.
+This script never builds images on HA nodes. Build and push images via GitHub Actions.
 EOF
     exit 2
 }

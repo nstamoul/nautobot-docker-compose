@@ -1,7 +1,7 @@
 ---
 services:
   celery_worker_vpn:
-    image: "shms/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}"
+    image: "${SHMS_NAUTOBOT_IMAGE:-ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot:main}"
     network_mode: "host"
     restart: "unless-stopped"
     tty: true

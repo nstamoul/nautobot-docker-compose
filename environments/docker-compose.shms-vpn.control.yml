@@ -1,8 +1,7 @@
 ---
 services:
   vpn-control-api:
-    build:
-      context: "../vpn/VPN_Control_API"
+    image: "${SHMS_VPN_CONTROL_API_IMAGE:?set SHMS_VPN_CONTROL_API_IMAGE}"
     container_name: "vpn-control-api"
     restart: "unless-stopped"
     entrypoint:

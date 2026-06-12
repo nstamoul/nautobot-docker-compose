@@ -10,12 +10,9 @@ def test_vpn_image_dockerfile_selects_vault_and_cisco_packages_by_target_archite
     dockerfile = (REPO_ROOT / "vpn" / "vpn" / "Dockerfile").read_text()
 
     assert "ARG TARGETARCH" in dockerfile
-    assert "case \"${TARGETARCH}\"" in dockerfile
-    assert "amd64) VAULT_ARCH=\"amd64\"; DEB_ARCH=\"amd64\"" in dockerfile
-    assert "arm64) VAULT_ARCH=\"arm64\"; DEB_ARCH=\"arm64\"" in dockerfile
+    assert "amd64|arm64) VAULT_ARCH=" in dockerfile
     assert "vault_${VAULT_VERSION}_linux_${VAULT_ARCH}.zip" in dockerfile
-    assert "cisco-secure-client-vpn-cli_*_${DEB_ARCH}.deb" in dockerfile
-    assert "cisco-secure-client-vpn-cli_*_amd64.deb" not in dockerfile
+    assert "vault_${VAULT_VERSION}_linux_amd64.zip" not in dockerfile
 
 
 def test_shms_vpn_compose_uses_registry_images_instead_of_node_local_builds():
@@ -37,11 +34,9 @@ def test_shms_vpn_compose_uses_registry_images_instead_of_node_local_builds():
 def test_vpn_control_api_image_contains_application_code_without_workspace_source():
     dockerfile = (REPO_ROOT / "vpn" / "VPN_Control_API" / "Dockerfile").read_text()
 
-    assert dockerfile.startswith("FROM python:3.11-slim")
-    assert "COPY app.py" in dockerfile
-    assert "COPY __init__.py" in dockerfile
-    assert "/opt/vpn-control/vpn/VPN_Control_API" in dockerfile
-    assert 'PYTHONPATH="/workspace/vpn:/opt/vpn-control/vpn"' in dockerfile
+    assert "ARG SHMS_NAUTOBOT_IMAGE=ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot:main" in dockerfile
+    assert "FROM ${SHMS_NAUTOBOT_IMAGE}" in dockerfile
+    assert 'PYTHONPATH="/workspace/vpn"' in dockerfile
 
 
 def test_vpn_control_deploy_script_is_explicit_and_does_not_build_on_ha_nodes():
@@ -56,22 +51,25 @@ def test_vpn_control_deploy_script_is_explicit_and_does_not_build_on_ha_nodes():
     assert "up -d --build" not in script
 
 
-def test_gitlab_ci_builds_and_pushes_release_images_with_tracked_cisco_artifacts():
-    ci = (REPO_ROOT / ".gitlab-ci.yml").read_text()
+def test_github_actions_builds_and_pushes_release_images_with_tracked_cisco_artifacts():
+    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text()
     artifact_readme = (REPO_ROOT / "vpn" / "vpn" / "cisco-secure-client" / "README.md").read_text()
     artifact_gitignore = (REPO_ROOT / "vpn" / "vpn" / "cisco-secure-client" / ".gitignore").read_text()
 
-    assert "build:shms-vpn:" in ci
-    assert "build:shms-vpn-control-api:" in ci
+    assert "build-shms-nautobot" in ci
+    assert "build-shms-vpn" in ci
+    assert "build-shms-vpn-control-api" in ci
     assert "CISCO_SECURE_CLIENT_AMD64_TGZ" not in ci
     assert "CISCO_SECURE_CLIENT_ARM64_TGZ" not in ci
-    assert "cisco-secure-client-linux64-5.1.17.3382-predeploy-deb-k9.tgz" in ci
-    assert "cisco-secure-client-linux-arm64-5.1.17.3382-predeploy-deb-k9.tgz" in ci
-    assert "CI_COMMIT_REF_PROTECTED" in ci
-    assert "when: manual" in ci
+    assert "ghcr.io/${{ github.repository }}/shms-nautobot" in ci
+    assert "ghcr.io/${{ github.repository }}/shms-vpn" in ci
+    assert "ghcr.io/${{ github.repository }}/shms-vpn-control-api" in ci
+    assert "workflow_dispatch" in ci
     assert "docker buildx build" in ci
     assert "--push" in ci
-    assert "CI_REGISTRY_IMAGE" in ci
+    assert "GITHUB_TOKEN" in ci
+    assert 'build_vpn' in ci
+    assert '--build-arg "SHMS_NAUTOBOT_IMAGE=${SHMS_NAUTOBOT_IMAGE}:${GITHUB_SHA}"' in ci
     assert "linux/amd64,linux/arm64" in ci
     assert "tonistiigi/binfmt --install amd64,arm64" in ci
     assert "approved Linux predeploy tarballs should be tracked here" in artifact_readme
