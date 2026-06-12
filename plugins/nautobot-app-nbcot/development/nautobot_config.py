@@ -132,6 +132,7 @@ PLUGINS_CONFIG = {
         "client_secret": os.getenv("NBCOT_CLIENT_SECRET") or os.getenv("CISCO_MODERN_API_SECRET", ""),
         "tracked_order_refresh_interval_minutes": int(os.getenv("NBCOT_REFRESH_INTERVAL_MINUTES", "60")),
         "enable_event_consumer": is_truthy(os.getenv("NBCOT_ENABLE_EVENT_CONSUMER", "false")),
+        "teams_webhook_url": os.getenv("NBCOT_TEAMS_WEBHOOK_URL", ""),
         "subscription_search_query_document": os.getenv("NBCOT_SUBSCRIPTION_SEARCH_QUERY_DOCUMENT", ""),
         "subscription_details_query_document": os.getenv("NBCOT_SUBSCRIPTION_DETAILS_QUERY_DOCUMENT", ""),
     }

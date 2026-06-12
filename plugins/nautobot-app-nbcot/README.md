@@ -31,6 +31,7 @@ Configure NBCOT in `PLUGINS_CONFIG["nbcot"]` with:
 - `client_secret`
 - `tracked_order_refresh_interval_minutes`
 - `enable_event_consumer`
+- `teams_webhook_url`
 - optional overrides for `search_query_document` and `order_details_query_document`
 
 The generated development config at [development/nautobot_config.py](/opt/_tools/_automation/nautobot_cisco_order_tracking/development/nautobot_config.py) includes example environment-variable wiring for these settings. The client resolves missing credentials through the shared SHMS secret resolver:
@@ -38,6 +39,8 @@ The generated development config at [development/nautobot_config.py](/opt/_tools
 - direct env/config fallback: `CISCO_MODERN_API_CLIENT_ID`, `CISCO_MODERN_API_SECRET`, `NBCOT_CLIENT_ID`, `NBCOT_CLIENT_SECRET`
 - legacy Vault token fallback: `HASHICORP_VAULT_URL`, `HASHICORP_VAULT_TOKEN`, `CISCO_API_VAULT_MOUNT`, `CISCO_API_VAULT_PATH`
 - future cert-auth shape: `VAULT_AUTH_METHOD=cert`, `VAULT_CERT_ROLE`, `VAULT_CLIENT_CERT`, `VAULT_CLIENT_KEY`, and `VAULT_CACERT` or `REQUESTS_CA_BUNDLE`
+
+Order notifications use Django email settings and the NBCOT Teams webhook setting. Keep non-secret delivery settings such as `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, and `DEFAULT_FROM_EMAIL` in `local.env`. Keep `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, and `NBCOT_TEAMS_WEBHOOK_URL` in Vault under `SHMS_STARTUP_SECRETS_VAULT_PATH`, with `creds.env` only as an explicit fallback.
 
 Keep `creds.env` token fallback explicit during migration; do not store client private keys or real tokens in Git.
 

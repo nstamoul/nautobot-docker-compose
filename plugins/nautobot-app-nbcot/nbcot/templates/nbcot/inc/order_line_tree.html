@@ -5,7 +5,23 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-controls {
+        background: #fff;
+        border-bottom: 1px solid #ddd;
+        margin: -1px 0 12px;
+        padding: 8px 0;
+        position: sticky;
+        top: 0;
+        z-index: 30;
+    }
+    .nbcot-line-tree .nbcot-line-context-toolbar {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 0;
     }
     .nbcot-line-tree .nbcot-line-filter {
         margin-left: auto;
@@ -63,22 +79,15 @@
         padding-top: 12px;
         text-align: right;
     }
-    .nbcot-line-tree .nbcot-line-color-controls {
-        border-top: 1px solid #eee;
-        margin-top: 18px;
-        padding-top: 12px;
-    }
     .nbcot-line-tree .nbcot-line-color-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
-        margin-top: 10px;
     }
     .nbcot-line-tree .nbcot-line-color-picker {
         align-items: center;
         display: flex;
         gap: 8px;
-        margin: 10px 0;
     }
     .nbcot-line-tree .nbcot-line-color-picker input[type="color"] {
         border: 1px solid #bbb;
@@ -102,6 +111,38 @@
         outline: 2px solid #2f80ed;
         outline-offset: 2px;
     }
+    .nbcot-line-tree .nbcot-line-freeze-control {
+        align-items: center;
+        display: flex;
+        gap: 6px;
+    }
+    .nbcot-line-tree .nbcot-line-freeze-control select {
+        width: auto;
+    }
+    .nbcot-line-tree thead th {
+        background: #fff;
+    }
+    .nbcot-line-tree thead tr:first-child th {
+        position: sticky;
+        top: var(--nbcot-line-header-top, 0px);
+        z-index: 18;
+    }
+    .nbcot-line-tree thead tr:nth-child(2) th {
+        position: sticky;
+        top: var(--nbcot-line-filter-top, 36px);
+        z-index: 18;
+    }
+    .nbcot-line-tree .nbcot-sticky-column {
+        box-shadow: 1px 0 0 #ddd;
+        left: var(--nbcot-sticky-left, 0px);
+        position: sticky;
+    }
+    .nbcot-line-tree tbody .nbcot-sticky-column {
+        z-index: 12;
+    }
+    .nbcot-line-tree thead .nbcot-sticky-column {
+        z-index: 24;
+    }
     .nbcot-line-tree tr.nbcot-line-tracked > td {
         background: #eaf4ff;
     }
@@ -114,28 +155,61 @@
         <form method="post" action="{{ tracking_form_action }}">
             {% csrf_token %}
     {% endif %}
-    <div class="nbcot-line-toolbar">
-        <div class="btn-group">
-            <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
-            <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
-        </div>
-        {% if tracking_mode %}
-            <div class="btn-group" style="margin-left: 8px;">
-                <button type="button" class="btn btn-default btn-sm" data-line-action="select-visible">Select Visible</button>
-                <button type="button" class="btn btn-default btn-sm" data-line-action="clear-visible">Clear Visible</button>
+    <div class="nbcot-line-sticky-controls" data-line-sticky-controls>
+        <div class="nbcot-line-toolbar">
+            <div class="btn-group">
+                <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
+                <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
             </div>
-        {% endif %}
-        {% if tracking_submit_label %}
-            <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
-        {% endif %}
-        <div class="input-group input-group-sm nbcot-line-filter">
-            <span class="input-group-addon">Filter</span>
-            <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
+            {% if tracking_mode %}
+                <div class="btn-group" style="margin-left: 8px;">
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="select-visible">Select Visible</button>
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="clear-visible">Clear Visible</button>
+                </div>
+            {% endif %}
+            {% if tracking_submit_label %}
+                <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
+            {% endif %}
+            <div class="input-group input-group-sm nbcot-line-filter">
+                <span class="input-group-addon">Filter</span>
+                <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
+            </div>
+            <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
+                <span class="mdi mdi-cog" aria-hidden="true"></span>
+                <span class="sr-only">Configure columns</span>
+            </button>
         </div>
-        <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
-            <span class="mdi mdi-cog" aria-hidden="true"></span>
-            <span class="sr-only">Configure columns</span>
-        </button>
+        <div class="nbcot-line-context-toolbar" data-line-color-toolbar>
+            <div class="nbcot-line-color-picker">
+                <label for="{{ table_id }}-tracked-color" style="margin: 0;">Line color</label>
+                <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
+            </div>
+            <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
+                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
+            </div>
+            {% if tracking_mode %}
+                <div class="nbcot-line-color-actions">
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
+                </div>
+            {% endif %}
+            <div class="nbcot-line-freeze-control">
+                <label for="{{ table_id }}-freeze-count" style="margin: 0;">Frozen columns</label>
+                <select id="{{ table_id }}-freeze-count" class="form-control input-sm" data-line-freeze-count>
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3" selected>3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                </select>
+            </div>
+        </div>
     </div>
 
     <div class="nbcot-line-config-panel" data-line-config-panel>
@@ -170,28 +244,6 @@
             <div class="nbcot-line-config-row" data-column-option="tracking"><label><input type="checkbox" data-column-choice="tracking" checked> Tracking Number</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
             <div class="nbcot-line-config-row" data-column-option="tracking_url"><label><input type="checkbox" data-column-choice="tracking_url" checked> Carrier URL</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
             <div class="nbcot-line-config-row" data-column-option="proof_of_delivery"><label><input type="checkbox" data-column-choice="proof_of_delivery" checked> Proof Of Delivery URL</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
-        </div>
-        <div class="nbcot-line-color-controls">
-            <h4 style="margin-top: 0;">Line Coloring</h4>
-            <label for="{{ table_id }}-tracked-color">Tracked line color</label>
-            <div class="nbcot-line-color-picker">
-                <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
-                <span class="text-muted">Used for tracked lines unless a row-specific color is set.</span>
-            </div>
-            <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
-                <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
-            </div>
-            {% if tracking_mode %}
-                <div class="nbcot-line-color-actions">
-                    <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
-                    <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
-                </div>
-            {% endif %}
         </div>
         <div class="nbcot-line-config-actions">
             <button type="button" class="btn btn-primary btn-sm" data-line-action="save-column-config">Save</button>
@@ -407,6 +459,8 @@
             var defaultTrackedColor = "#eaf4ff";
             var trackedColor = defaultTrackedColor;
             var rowColors = {};
+            var defaultFreezeCount = 3;
+            var freezeCount = defaultFreezeCount;
             var columnOrder = [];
             var sortState = {key: "line", type: "line", direction: "asc"};
 
@@ -541,6 +595,8 @@
                         }
                     });
                 });
+                updateStickyOffsets();
+                applyFrozenColumns();
             }
 
             function applyRowColors() {
@@ -559,6 +615,50 @@
                 });
             }
 
+            function visibleColumnKeys() {
+                return columnOrder.filter(function (key) {
+                    return !hiddenColumns.has(key);
+                });
+            }
+
+            function updateFreezeControl() {
+                var control = tree.querySelector("[data-line-freeze-count]");
+                if (control) {
+                    control.value = String(freezeCount);
+                }
+            }
+
+            function clearFrozenColumns() {
+                tree.querySelectorAll(".nbcot-sticky-column").forEach(function (cell) {
+                    cell.classList.remove("nbcot-sticky-column");
+                    cell.style.removeProperty("--nbcot-sticky-left");
+                });
+            }
+
+            function applyFrozenColumns() {
+                var leftOffset = 0;
+                var frozenKeys = visibleColumnKeys().slice(0, freezeCount);
+                clearFrozenColumns();
+                frozenKeys.forEach(function (key) {
+                    var headerCell = tree.querySelector("thead tr:first-child [data-column-key='" + key + "']");
+                    tree.querySelectorAll("[data-column-key='" + key + "']").forEach(function (cell) {
+                        cell.classList.add("nbcot-sticky-column");
+                        cell.style.setProperty("--nbcot-sticky-left", leftOffset + "px");
+                    });
+                    leftOffset += headerCell ? headerCell.getBoundingClientRect().width : 0;
+                });
+                updateFreezeControl();
+            }
+
+            function updateStickyOffsets() {
+                var controls = tree.querySelector("[data-line-sticky-controls]");
+                var firstHeaderRow = tree.querySelector("thead tr:first-child");
+                var controlsHeight = controls ? controls.getBoundingClientRect().height : 0;
+                var headerHeight = firstHeaderRow ? firstHeaderRow.getBoundingClientRect().height : 0;
+                tree.style.setProperty("--nbcot-line-header-top", controlsHeight + "px");
+                tree.style.setProperty("--nbcot-line-filter-top", (controlsHeight + headerHeight) + "px");
+            }
+
             function selectedRows() {
                 return rows.filter(function (row) {
                     var checkbox = row.querySelector("input[name='line_keys']");
@@ -574,6 +674,7 @@
                 tree.querySelectorAll("[data-column-choice]").forEach(function (input) {
                     input.checked = !hiddenColumns.has(input.getAttribute("data-column-choice"));
                 });
+                applyFrozenColumns();
                 applyRowColors();
             }
 
@@ -583,6 +684,7 @@
                     order: columnOrder,
                     trackedColor: trackedColor,
                     rowColors: rowColors,
+                    freezeCount: freezeCount,
                 }));
             }
 
@@ -600,12 +702,17 @@
                         columnOrder = normalizeColumnOrder(config.order || []);
                         trackedColor = config.trackedColor || defaultTrackedColor;
                         rowColors = config.rowColors || {};
+                        freezeCount = Number(config.freezeCount);
+                        if (!Number.isFinite(freezeCount)) {
+                            freezeCount = defaultFreezeCount;
+                        }
                     }
                 } catch (error) {
                     hiddenColumns.clear();
                     columnOrder = [];
                     trackedColor = defaultTrackedColor;
                     rowColors = {};
+                    freezeCount = defaultFreezeCount;
                 }
                 applyColumnOrder();
                 applyColumnVisibility();
@@ -703,14 +810,27 @@
                 input.addEventListener("input", function () {
                     trackedColor = input.value || defaultTrackedColor;
                     applyRowColors();
+                    saveColumnConfig();
                 });
             });
             tree.querySelectorAll("[data-line-color-swatch]").forEach(function (button) {
                 button.addEventListener("click", function () {
                     trackedColor = button.getAttribute("data-line-color-swatch") || defaultTrackedColor;
                     applyRowColors();
+                    saveColumnConfig();
                 });
             });
+            var freezeControl = tree.querySelector("[data-line-freeze-count]");
+            if (freezeControl) {
+                freezeControl.addEventListener("change", function () {
+                    freezeCount = Number(freezeControl.value);
+                    if (!Number.isFinite(freezeCount)) {
+                        freezeCount = defaultFreezeCount;
+                    }
+                    applyFrozenColumns();
+                    saveColumnConfig();
+                });
+            }
             var applyColorSelectedButton = tree.querySelector("[data-line-action='apply-color-selected']");
             if (applyColorSelectedButton) {
                 applyColorSelectedButton.addEventListener("click", function () {
@@ -718,6 +838,7 @@
                         rowColors[row.getAttribute("data-line-row")] = trackedColor;
                     });
                     applyRowColors();
+                    saveColumnConfig();
                 });
             }
             var clearColorSelectedButton = tree.querySelector("[data-line-action='clear-color-selected']");
@@ -727,6 +848,7 @@
                         delete rowColors[row.getAttribute("data-line-row")];
                     });
                     applyRowColors();
+                    saveColumnConfig();
                 });
             }
             var panel = tree.querySelector("[data-line-config-panel]");
@@ -745,6 +867,7 @@
                 columnOrder = defaultColumnOrder();
                 trackedColor = defaultTrackedColor;
                 rowColors = {};
+                freezeCount = defaultFreezeCount;
                 window.localStorage.removeItem(storageKey);
                 applyColumnOrder();
                 applyColumnVisibility();
@@ -752,6 +875,10 @@
             columnOrder = defaultColumnOrder();
             loadColumnConfig();
             sortAndRender();
+            window.addEventListener("resize", function () {
+                updateStickyOffsets();
+                applyFrozenColumns();
+            });
         });
     }());
 </script>

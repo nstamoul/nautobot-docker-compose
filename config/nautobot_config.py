@@ -61,6 +61,21 @@ USE_TZ = True
 CELERY_TIMEZONE = TIME_ZONE
 
 #
+# Email / Notifications
+#
+
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", globals().get("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"))
+EMAIL_HOST = os.getenv("EMAIL_HOST", globals().get("EMAIL_HOST", "localhost"))
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", str(globals().get("EMAIL_PORT", 25))))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", globals().get("EMAIL_HOST_USER", ""))
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", globals().get("EMAIL_HOST_PASSWORD", ""))
+EMAIL_USE_TLS = is_truthy(os.getenv("EMAIL_USE_TLS", str(globals().get("EMAIL_USE_TLS", False))))
+EMAIL_USE_SSL = is_truthy(os.getenv("EMAIL_USE_SSL", str(globals().get("EMAIL_USE_SSL", False))))
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", str(globals().get("EMAIL_TIMEOUT", 10) or 10)))
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", globals().get("DEFAULT_FROM_EMAIL", "webmaster@localhost"))
+SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
+
+#
 # Redis
 #
 
@@ -241,6 +256,7 @@ PLUGINS_CONFIG = {
         "client_secret": os.getenv("CISCO_MODERN_API_SECRET", ""),
         "tracked_order_refresh_interval_minutes": int(os.getenv("NBCOT_REFRESH_INTERVAL_MINUTES", "60")),
         "enable_event_consumer": is_truthy(os.getenv("NBCOT_ENABLE_EVENT_CONSUMER", "false")),
+        "teams_webhook_url": os.getenv("NBCOT_TEAMS_WEBHOOK_URL", ""),
     },
     "nautobot_vpn_manager": {
         "control_api_url": os.getenv("VPN_CONTROL_API_URL", "http://vpn-control-api:5001"),

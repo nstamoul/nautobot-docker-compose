@@ -209,6 +209,9 @@ class SecretResolverTest(TestCase):
                         "NAUTOBOT_DB_PASSWORD": "from-vault",
                         "API_TOKEN_CLIENT_ID": "vault-client-id",
                         "API_TOKEN_CLIENT_PASS": "vault-client-secret",
+                        "EMAIL_HOST_USER": "smtp-user",
+                        "EMAIL_HOST_PASSWORD": "smtp-password",
+                        "NBCOT_TEAMS_WEBHOOK_URL": "https://example.invalid/workflow",
                     }
                 }
             }
@@ -225,3 +228,6 @@ class SecretResolverTest(TestCase):
         self.assertEqual(os.environ["NAUTOBOT_DB_PASSWORD"], "from-env")
         self.assertEqual(os.environ["CISCO_MODERN_API_CLIENT_ID"], "vault-client-id")
         self.assertEqual(os.environ["CISCO_MODERN_API_SECRET"], "vault-client-secret")
+        self.assertEqual(os.environ["EMAIL_HOST_USER"], "smtp-user")
+        self.assertEqual(os.environ["EMAIL_HOST_PASSWORD"], "smtp-password")
+        self.assertEqual(os.environ["NBCOT_TEAMS_WEBHOOK_URL"], "https://example.invalid/workflow")
