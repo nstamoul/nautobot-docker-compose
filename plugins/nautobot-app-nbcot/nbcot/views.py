@@ -30,7 +30,7 @@ from nbcot.cisco.exceptions import NBCOTConfigurationError
 from nbcot.cisco.line_items import build_line_tree
 from nbcot.cisco.subscriptions import CiscoSubscriptionService
 from nbcot.cisco.sync import CiscoOrderSynchronizer
-from nbcot.exports import build_orders_workbook
+from nbcot.exports import build_order_workbook, build_orders_workbook
 
 
 class OrderSearchView(PermissionRequiredMixin, TemplateView):
@@ -372,7 +372,7 @@ class ExportCiscoOrderView(PermissionRequiredMixin, View):
     def get(self, _request, pk):
         """Return an XLSX workbook for the selected order."""
         order = get_object_or_404(models.CiscoOrder.objects.prefetch_related("lines"), pk=pk)
-        content = build_orders_workbook([order])
+        content = build_order_workbook(order)
         filename = f"Cisco_Order_{order.order_number}_{timezone.now():%Y%m%d%H%M%S}.xlsx"
         return _xlsx_response(content, filename)
 

@@ -5,12 +5,52 @@ from io import BytesIO
 from django.test import TestCase
 from openpyxl import load_workbook
 
-from nbcot.exports import build_orders_workbook
+from nbcot.exports import build_order_workbook, build_orders_workbook
 from nbcot.tests import fixtures
 
 
 class CiscoOrderExportTest(TestCase):
     """Test tracked order Excel exports."""
+
+    def test_single_order_export_uses_cisco_like_sheet_names_and_full_serial_lists(self):
+        """Single-order workbook should mimic Cisco's line detail shape and include all serial values."""
+        order = fixtures.create_ciscoorder(order_number="SO-9050")
+        fixtures.create_line(
+            order,
+            line_key="phones",
+            line_number="3.0",
+            sku="CP-7841-K9=",
+            description="Cisco IP Phone 7841",
+            quantity_ordered=30,
+            quantity_fulfilled=30,
+            quantity_backordered=0,
+            serial_number="SER-001",
+            mac_address="MAC-001",
+            raw_payload={
+                "serialNumberAttributes": [
+                    {
+                        "serialNumber": ["SER-001", "SER-002"],
+                        "macAddresses": ["MAC-001", "MAC-002"],
+                    },
+                    {
+                        "serialNumber": ["SER-003"],
+                        "macAddresses": ["MAC-003"],
+                    },
+                ]
+            },
+        )
+
+        workbook = load_workbook(BytesIO(build_order_workbook(order)))
+
+        self.assertEqual(workbook.sheetnames, ["Order Header", "Order Line Details", "Credit Breakdown"])
+        line_sheet = workbook["Order Line Details"]
+        self.assertEqual(line_sheet["A1"].value, "Line Number")
+        self.assertEqual(line_sheet["M1"].value, "Serial Numbers")
+        self.assertEqual(line_sheet["A2"].value, "3.0")
+        self.assertEqual(line_sheet["B2"].value, "CP-7841-K9=")
+        self.assertEqual(line_sheet["M2"].value, "SER-001\nSER-002\nSER-003")
+        self.assertEqual(line_sheet.cell(row=1, column=171).value, "MAC Addresses")
+        self.assertEqual(line_sheet.cell(row=2, column=171).value, "MAC-001\nMAC-002\nMAC-003")
 
     def test_export_contains_order_fields_and_major_minor_line_classification(self):
         """Workbook should expose order metadata and classify line hierarchy."""

@@ -59,6 +59,12 @@
         max-width: 360px;
         min-width: 260px;
     }
+    .nbcot-line-tree .nbcot-line-multivalue {
+        display: block;
+        max-height: 9em;
+        overflow: hidden;
+        white-space: pre-line;
+    }
     .nbcot-line-tree .nbcot-line-config-panel {
         background: #fff;
         border-left: 1px solid #ddd;
@@ -364,9 +370,9 @@
                         data-backordered="{{ row.line.quantity_backordered|default:'0' }}"
                         data-promised="{{ row.line.promised_delivery_date|default:'' }}"
                         data-estimated="{{ row.line.estimated_delivery_date|default:'' }}"
-                        data-serial="{{ row.line.serial_number|default:'' }}"
-                        data-parent-serial="{{ row.line.parent_serial_number|default:'' }}"
-                        data-mac="{{ row.line.mac_address|default:'' }}"
+                        data-serial="{{ row.line.serial_numbers_export|default:'' }}"
+                        data-parent-serial="{{ row.line.parent_serial_numbers_export|default:'' }}"
+                        data-mac="{{ row.line.mac_addresses_export|default:'' }}"
                         data-imei="{{ row.line.imei_number|default:'' }}"
                         data-instance="{{ row.line.instance_number|default:'' }}"
                         data-license-key="{{ row.line.license_key|default:'' }}"
@@ -409,9 +415,9 @@
                         <td data-column-key="backordered" class="text-right">{{ row.line.quantity_backordered }}</td>
                         <td data-column-key="promised">{{ row.line.promised_delivery_date|default:"-" }}</td>
                         <td data-column-key="estimated">{{ row.line.estimated_delivery_date|default:"-" }}</td>
-                        <td data-column-key="serial">{{ row.line.serial_number|default:"-" }}</td>
-                        <td data-column-key="parent_serial">{{ row.line.parent_serial_number|default:"-" }}</td>
-                        <td data-column-key="mac">{{ row.line.mac_address|default:"-" }}</td>
+                        <td data-column-key="serial"><span class="nbcot-line-multivalue">{{ row.line.serial_numbers_display|default:"-" }}</span></td>
+                        <td data-column-key="parent_serial"><span class="nbcot-line-multivalue">{{ row.line.parent_serial_numbers_display|default:"-" }}</span></td>
+                        <td data-column-key="mac"><span class="nbcot-line-multivalue">{{ row.line.mac_addresses_display|default:"-" }}</span></td>
                         <td data-column-key="imei">{{ row.line.imei_number|default:"-" }}</td>
                         <td data-column-key="instance">{{ row.line.instance_number|default:"-" }}</td>
                         <td data-column-key="license_key">{{ row.line.license_key|default:"-" }}</td>

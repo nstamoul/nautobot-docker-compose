@@ -7,6 +7,7 @@ from nautobot.apps.models import BaseModel, PrimaryModel, extras_features
 
 from nbcot.choices import CiscoEnvironmentChoices, ChangeSourceChoices, OrderUpdateTypeChoices, SyncStatusChoices
 from nbcot.cisco.line_items import line_number_sort_value
+from nbcot.cisco.serials import joined_attribute_values, serial_attribute_display, serial_attribute_values
 
 
 @extras_features("custom_links", "custom_validators", "export_templates", "graphql", "webhooks")
@@ -108,6 +109,51 @@ class CiscoOrderLine(BaseModel):
         """Stringify instance."""
         label = self.line_number or self.line_key
         return f"{self.order.order_number} line {label}"
+
+    @property
+    def serial_numbers(self):
+        """All serial numbers carried by Cisco serialNumberAttributes."""
+        return serial_attribute_values(self.raw_payload, "serialNumber", fallback=self.serial_number)
+
+    @property
+    def parent_serial_numbers(self):
+        """All parent serial numbers carried by Cisco serialNumberAttributes."""
+        return serial_attribute_values(self.raw_payload, "parentSerialNumber", fallback=self.parent_serial_number)
+
+    @property
+    def mac_addresses(self):
+        """All MAC addresses carried by Cisco serialNumberAttributes."""
+        return serial_attribute_values(self.raw_payload, "macAddresses", fallback=self.mac_address)
+
+    @property
+    def serial_numbers_export(self):
+        """Newline-separated serial numbers for Excel export."""
+        return joined_attribute_values(self.raw_payload, "serialNumber", fallback=self.serial_number)
+
+    @property
+    def parent_serial_numbers_export(self):
+        """Newline-separated parent serial numbers for Excel export."""
+        return joined_attribute_values(self.raw_payload, "parentSerialNumber", fallback=self.parent_serial_number)
+
+    @property
+    def mac_addresses_export(self):
+        """Newline-separated MAC addresses for Excel export."""
+        return joined_attribute_values(self.raw_payload, "macAddresses", fallback=self.mac_address)
+
+    @property
+    def serial_numbers_display(self):
+        """Bounded serial-number display for the UI."""
+        return serial_attribute_display(self.raw_payload, "serialNumber", fallback=self.serial_number)
+
+    @property
+    def parent_serial_numbers_display(self):
+        """Bounded parent-serial display for the UI."""
+        return serial_attribute_display(self.raw_payload, "parentSerialNumber", fallback=self.parent_serial_number)
+
+    @property
+    def mac_addresses_display(self):
+        """Bounded MAC-address display for the UI."""
+        return serial_attribute_display(self.raw_payload, "macAddresses", fallback=self.mac_address)
 
 
 class CiscoOrderUpdate(BaseModel):

@@ -56,3 +56,13 @@ def test_line_tree_uses_fixed_scroll_controller_for_vertical_context():
     assert "function updateFixedStickyStack()" in template
     assert "window.addEventListener(\"scroll\", updateFixedStickyStack" in template
     assert "stickyStack.classList.add(\"is-fixed\")" in template
+
+
+def test_line_tree_uses_capped_serial_display_helpers():
+    template = TEMPLATE.read_text()
+
+    assert "serial_numbers_display" in template
+    assert "parent_serial_numbers_display" in template
+    assert "mac_addresses_display" in template
+    assert "serial_numbers_export" in template
+    assert "mac_addresses_export" in template
