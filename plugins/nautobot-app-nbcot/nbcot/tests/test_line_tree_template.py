@@ -36,3 +36,23 @@ def test_line_tree_header_widths_and_horizontal_scroll_are_synced():
     assert 'tree.querySelector("[data-line-body-scroll]")' in template
     assert "headerScroll.scrollLeft = bodyScroll.scrollLeft" in template
     assert "bodyScroll.scrollLeft = headerScroll.scrollLeft" in template
+
+
+def test_line_tree_columns_have_explicit_minimum_widths_for_horizontal_scroll():
+    template = TEMPLATE.read_text()
+
+    assert "function columnMinWidth(key)" in template
+    assert "minWidth = Math.max(width, columnMinWidth(key))" in template
+    assert '"description": 420' in template
+    assert '"proof_of_delivery": 260' in template
+    assert "width: max-content" in template
+
+
+def test_line_tree_uses_fixed_scroll_controller_for_vertical_context():
+    template = TEMPLATE.read_text()
+
+    assert 'data-line-sticky-spacer' in template
+    assert ".nbcot-line-sticky-stack.is-fixed" in template
+    assert "function updateFixedStickyStack()" in template
+    assert "window.addEventListener(\"scroll\", updateFixedStickyStack" in template
+    assert "stickyStack.classList.add(\"is-fixed\")" in template

@@ -10,9 +10,23 @@
     .nbcot-line-tree .nbcot-line-sticky-stack {
         background: #fff;
         border-bottom: 1px solid #ddd;
-        position: sticky;
-        top: 0;
+        position: relative;
         z-index: 30;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-stack.is-fixed {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        left: var(--nbcot-line-fixed-left, 0px);
+        position: fixed;
+        top: var(--nbcot-line-fixed-top, 0px);
+        width: var(--nbcot-line-fixed-width, auto);
+        z-index: 1030;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-spacer {
+        display: none;
+        height: var(--nbcot-line-sticky-height, 0px);
+    }
+    .nbcot-line-tree .nbcot-line-sticky-spacer.is-active {
+        display: block;
     }
     .nbcot-line-tree .nbcot-line-sticky-controls {
         background: #fff;
@@ -29,7 +43,9 @@
     }
     .nbcot-line-tree .nbcot-line-header-table,
     .nbcot-line-tree .nbcot-line-body-table {
+        min-width: 100%;
         margin-bottom: 0;
+        width: max-content;
     }
     .nbcot-line-tree .nbcot-line-context-toolbar {
         align-items: center;
@@ -325,6 +341,7 @@
             </table>
         </div>
     </div>
+    <div class="nbcot-line-sticky-spacer" data-line-sticky-spacer></div>
 
     <div class="table-responsive nbcot-line-body-scroll" data-line-body-scroll>
         <table class="table table-hover table-condensed nbcot-line-body-table" id="{{ table_id }}">
@@ -478,6 +495,8 @@
             var bodyScroll = tree.querySelector("[data-line-body-scroll]");
             var headerTable = tree.querySelector(".nbcot-line-header-table");
             var bodyTable = tree.querySelector(".nbcot-line-body-table");
+            var stickyStack = tree.querySelector("[data-line-sticky-stack]");
+            var stickySpacer = tree.querySelector("[data-line-sticky-spacer]");
             var syncingHorizontalScroll = false;
 
             function childrenOf(parentId) {
@@ -661,6 +680,36 @@
                 });
             }
 
+            function columnMinWidth(key) {
+                var widths = {
+                    "track": 52,
+                    "line": 140,
+                    "sku": 190,
+                    "description": 420,
+                    "status": 150,
+                    "shipment": 140,
+                    "tracked": 110,
+                    "ordered": 80,
+                    "fulfilled": 90,
+                    "backordered": 110,
+                    "promised": 120,
+                    "estimated": 120,
+                    "serial": 170,
+                    "parent_serial": 160,
+                    "mac": 140,
+                    "imei": 140,
+                    "instance": 220,
+                    "license_key": 180,
+                    "cloud_id": 160,
+                    "contract_number": 160,
+                    "carrier": 190,
+                    "tracking": 220,
+                    "tracking_url": 260,
+                    "proof_of_delivery": 260,
+                };
+                return widths[key] || 120;
+            }
+
             function firstVisibleBodyRow() {
                 return rows.find(function (row) {
                     return row.style.display !== "none";
@@ -674,22 +723,26 @@
                 }
                 clearHeaderWidths();
                 headerTable.style.width = "";
-                var bodyWidth = bodyTable.getBoundingClientRect().width;
-                if (bodyWidth) {
-                    headerTable.style.width = bodyWidth + "px";
-                }
+                var explicitWidth = 0;
                 visibleColumnKeys().forEach(function (key) {
                     var bodyCell = sourceRow.querySelector("[data-column-key='" + key + "']");
                     var width = bodyCell ? bodyCell.getBoundingClientRect().width : 0;
-                    if (!width) {
-                        return;
-                    }
+                    var minWidth = Math.max(width, columnMinWidth(key));
+                    explicitWidth += minWidth;
                     tree.querySelectorAll(".nbcot-line-heading-row [data-column-key='" + key + "'], .nbcot-line-filter-row [data-column-key='" + key + "']").forEach(function (cell) {
-                        cell.style.width = width + "px";
-                        cell.style.minWidth = width + "px";
-                        cell.style.maxWidth = width + "px";
+                        cell.style.width = minWidth + "px";
+                        cell.style.minWidth = minWidth + "px";
+                        cell.style.maxWidth = minWidth + "px";
+                    });
+                    tree.querySelectorAll("tbody [data-column-key='" + key + "']").forEach(function (cell) {
+                        cell.style.minWidth = minWidth + "px";
                     });
                 });
+                if (explicitWidth) {
+                    bodyTable.style.minWidth = explicitWidth + "px";
+                    headerTable.style.width = explicitWidth + "px";
+                }
+                updateFixedStickyStack();
             }
 
             function syncHorizontalScroll() {
@@ -712,6 +765,43 @@
                     bodyScroll.scrollLeft = headerScroll.scrollLeft;
                     syncingHorizontalScroll = false;
                 });
+            }
+
+            function stickyStackOriginalTop() {
+                if (!stickyStack) {
+                    return 0;
+                }
+                if (stickyStack.classList.contains("is-fixed") && stickySpacer) {
+                    return stickySpacer.getBoundingClientRect().top + window.pageYOffset;
+                }
+                return stickyStack.getBoundingClientRect().top + window.pageYOffset;
+            }
+
+            function updateFixedStickyStack() {
+                if (!stickyStack || !stickySpacer || !bodyScroll) {
+                    return;
+                }
+                var stackHeight = stickyStack.getBoundingClientRect().height;
+                var originalTop = stickyStackOriginalTop();
+                var treeRect = tree.getBoundingClientRect();
+                var treeBottom = treeRect.bottom + window.pageYOffset;
+                var scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+                var shouldFix = scrollTop > originalTop && scrollTop < (treeBottom - stackHeight);
+
+                tree.style.setProperty("--nbcot-line-sticky-height", stackHeight + "px");
+                if (shouldFix) {
+                    stickyStack.classList.add("is-fixed");
+                    stickySpacer.classList.add("is-active");
+                    tree.style.setProperty("--nbcot-line-fixed-left", treeRect.left + "px");
+                    tree.style.setProperty("--nbcot-line-fixed-width", treeRect.width + "px");
+                    tree.style.setProperty("--nbcot-line-fixed-top", "0px");
+                } else {
+                    stickyStack.classList.remove("is-fixed");
+                    stickySpacer.classList.remove("is-active");
+                    tree.style.removeProperty("--nbcot-line-fixed-left");
+                    tree.style.removeProperty("--nbcot-line-fixed-width");
+                    tree.style.removeProperty("--nbcot-line-fixed-top");
+                }
             }
 
             function applyFrozenColumns() {
@@ -947,9 +1037,12 @@
             columnOrder = defaultColumnOrder();
             loadColumnConfig();
             sortAndRender();
+            updateFixedStickyStack();
+            window.addEventListener("scroll", updateFixedStickyStack, {passive: true});
             window.addEventListener("resize", function () {
                 syncHeaderWidths();
                 applyFrozenColumns();
+                updateFixedStickyStack();
             });
         });
     }());
