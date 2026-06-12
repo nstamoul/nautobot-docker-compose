@@ -10,16 +10,29 @@ TEMPLATE = (
 )
 
 
-def test_line_tree_controls_are_part_of_sticky_table_header_stack():
+def test_line_tree_sticky_stack_sits_outside_horizontal_scroll_container():
     template = TEMPLATE.read_text()
 
-    controls_row = template.index('class="nbcot-line-controls-row"')
+    sticky_stack = template.index('data-line-sticky-stack')
+    controls = template.index('data-line-sticky-controls')
+    header_scroll = template.index('data-line-header-scroll')
+    body_scroll = template.index('data-line-body-scroll')
     heading_row = template.index('class="nbcot-line-heading-row"')
     filter_row = template.index('class="nbcot-line-filter-row"')
-    controls_marker = template.index('data-line-sticky-controls')
-    table = template.index("<table")
+    body_table = template.index('class="table table-hover table-condensed nbcot-line-body-table"')
 
-    assert table < controls_row < heading_row < filter_row
-    assert controls_row < controls_marker < heading_row
+    assert sticky_stack < body_scroll
+    assert sticky_stack < controls < header_scroll < heading_row < filter_row < body_scroll < body_table
+    assert 'class="nbcot-line-controls-row"' not in template
     assert "thead tr:first-child th" not in template
     assert "thead tr:nth-child(2) th" not in template
+
+
+def test_line_tree_header_widths_and_horizontal_scroll_are_synced():
+    template = TEMPLATE.read_text()
+
+    assert "function syncHeaderWidths()" in template
+    assert 'tree.querySelector("[data-line-header-scroll]")' in template
+    assert 'tree.querySelector("[data-line-body-scroll]")' in template
+    assert "headerScroll.scrollLeft = bodyScroll.scrollLeft" in template
+    assert "bodyScroll.scrollLeft = headerScroll.scrollLeft" in template

@@ -7,17 +7,29 @@
         gap: 8px;
         margin-bottom: 8px;
     }
-    .nbcot-line-tree .nbcot-line-controls-row > th {
+    .nbcot-line-tree .nbcot-line-sticky-stack {
         background: #fff;
         border-bottom: 1px solid #ddd;
-        left: 0;
-        padding: 8px 0 10px;
         position: sticky;
         top: 0;
         z-index: 30;
     }
     .nbcot-line-tree .nbcot-line-sticky-controls {
         background: #fff;
+        padding: 8px 0 10px;
+    }
+    .nbcot-line-tree .nbcot-line-header-scroll {
+        background: #fff;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+    .nbcot-line-tree .nbcot-line-header-scroll::-webkit-scrollbar {
+        display: none;
+    }
+    .nbcot-line-tree .nbcot-line-header-table,
+    .nbcot-line-tree .nbcot-line-body-table {
+        margin-bottom: 0;
     }
     .nbcot-line-tree .nbcot-line-context-toolbar {
         align-items: center;
@@ -122,18 +134,8 @@
     .nbcot-line-tree .nbcot-line-freeze-control select {
         width: auto;
     }
-    .nbcot-line-tree thead th {
+    .nbcot-line-tree th {
         background: #fff;
-    }
-    .nbcot-line-tree .nbcot-line-heading-row > th {
-        position: sticky;
-        top: var(--nbcot-line-header-top, 0px);
-        z-index: 18;
-    }
-    .nbcot-line-tree .nbcot-line-filter-row > th {
-        position: sticky;
-        top: var(--nbcot-line-filter-top, 36px);
-        z-index: 18;
     }
     .nbcot-line-tree .nbcot-sticky-column {
         box-shadow: 1px 0 0 #ddd;
@@ -143,7 +145,7 @@
     .nbcot-line-tree tbody .nbcot-sticky-column {
         z-index: 12;
     }
-    .nbcot-line-tree thead .nbcot-sticky-column {
+    .nbcot-line-tree .nbcot-line-header-table .nbcot-sticky-column {
         z-index: 24;
     }
     .nbcot-line-tree tr.nbcot-line-tracked > td {
@@ -197,69 +199,66 @@
         </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-hover table-condensed" id="{{ table_id }}">
-            <thead>
-                <tr class="nbcot-line-controls-row" data-line-sticky-controls>
-                    <th colspan="99">
-                        <div class="nbcot-line-sticky-controls">
-                            <div class="nbcot-line-toolbar">
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
-                                    <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
-                                </div>
-                                {% if tracking_mode %}
-                                    <div class="btn-group" style="margin-left: 8px;">
-                                        <button type="button" class="btn btn-default btn-sm" data-line-action="select-visible">Select Visible</button>
-                                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-visible">Clear Visible</button>
-                                    </div>
-                                {% endif %}
-                                {% if tracking_submit_label %}
-                                    <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
-                                {% endif %}
-                                <div class="input-group input-group-sm nbcot-line-filter">
-                                    <span class="input-group-addon">Filter</span>
-                                    <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
-                                </div>
-                                <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
-                                    <span class="mdi mdi-cog" aria-hidden="true"></span>
-                                    <span class="sr-only">Configure columns</span>
-                                </button>
-                            </div>
-                            <div class="nbcot-line-context-toolbar" data-line-color-toolbar>
-                                <div class="nbcot-line-color-picker">
-                                    <label for="{{ table_id }}-tracked-color" style="margin: 0;">Line color</label>
-                                    <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
-                                </div>
-                                <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
-                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
-                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
-                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
-                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
-                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
-                                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
-                                </div>
-                                {% if tracking_mode %}
-                                    <div class="nbcot-line-color-actions">
-                                        <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
-                                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
-                                    </div>
-                                {% endif %}
-                                <div class="nbcot-line-freeze-control">
-                                    <label for="{{ table_id }}-freeze-count" style="margin: 0;">Frozen columns</label>
-                                    <select id="{{ table_id }}-freeze-count" class="form-control input-sm" data-line-freeze-count>
-                                        <option value="0">0</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3" selected>3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </th>
-                </tr>
+    <div class="nbcot-line-sticky-stack" data-line-sticky-stack>
+        <div class="nbcot-line-sticky-controls" data-line-sticky-controls>
+            <div class="nbcot-line-toolbar">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
+                </div>
+                {% if tracking_mode %}
+                    <div class="btn-group" style="margin-left: 8px;">
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="select-visible">Select Visible</button>
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-visible">Clear Visible</button>
+                    </div>
+                {% endif %}
+                {% if tracking_submit_label %}
+                    <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
+                {% endif %}
+                <div class="input-group input-group-sm nbcot-line-filter">
+                    <span class="input-group-addon">Filter</span>
+                    <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
+                </div>
+                <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
+                    <span class="mdi mdi-cog" aria-hidden="true"></span>
+                    <span class="sr-only">Configure columns</span>
+                </button>
+            </div>
+            <div class="nbcot-line-context-toolbar" data-line-color-toolbar>
+                <div class="nbcot-line-color-picker">
+                    <label for="{{ table_id }}-tracked-color" style="margin: 0;">Line color</label>
+                    <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
+                </div>
+                <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
+                </div>
+                {% if tracking_mode %}
+                    <div class="nbcot-line-color-actions">
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
+                    </div>
+                {% endif %}
+                <div class="nbcot-line-freeze-control">
+                    <label for="{{ table_id }}-freeze-count" style="margin: 0;">Frozen columns</label>
+                    <select id="{{ table_id }}-freeze-count" class="form-control input-sm" data-line-freeze-count>
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="nbcot-line-header-scroll" data-line-header-scroll>
+            <table class="table table-condensed nbcot-line-header-table">
+                <thead>
                 <tr class="nbcot-line-heading-row">
                     {% if tracking_mode %}
                         <th data-column-key="track" style="width: 42px;">Track</th>
@@ -322,7 +321,13 @@
                     <th data-column-key="tracking_url"><input type="search" class="form-control input-sm" data-line-filter="tracking-url"></th>
                     <th data-column-key="proof_of_delivery"><input type="search" class="form-control input-sm" data-line-filter="proof-of-delivery"></th>
                 </tr>
-            </thead>
+                </thead>
+            </table>
+        </div>
+    </div>
+
+    <div class="table-responsive nbcot-line-body-scroll" data-line-body-scroll>
+        <table class="table table-hover table-condensed nbcot-line-body-table" id="{{ table_id }}">
             <tbody>
                 {% for row in line_rows %}
                     <tr
@@ -469,6 +474,11 @@
             var freezeCount = defaultFreezeCount;
             var columnOrder = [];
             var sortState = {key: "line", type: "line", direction: "asc"};
+            var headerScroll = tree.querySelector("[data-line-header-scroll]");
+            var bodyScroll = tree.querySelector("[data-line-body-scroll]");
+            var headerTable = tree.querySelector(".nbcot-line-header-table");
+            var bodyTable = tree.querySelector(".nbcot-line-body-table");
+            var syncingHorizontalScroll = false;
 
             function childrenOf(parentId) {
                 return rows.filter(function (row) {
@@ -551,6 +561,8 @@
                     button.textContent = expanded ? "-" : "+";
                     button.setAttribute("aria-expanded", expanded ? "true" : "false");
                 });
+                syncHeaderWidths();
+                applyFrozenColumns();
             }
 
             function sortAndRender() {
@@ -591,7 +603,7 @@
                         options.appendChild(option);
                     }
                 });
-                tree.querySelectorAll("thead tr, tbody tr").forEach(function (row) {
+                tree.querySelectorAll(".nbcot-line-heading-row, .nbcot-line-filter-row, tbody tr").forEach(function (row) {
                     columnOrder.forEach(function (key) {
                         var cell = Array.from(row.children).find(function (child) {
                             return child.getAttribute("data-column-key") === key;
@@ -601,7 +613,7 @@
                         }
                     });
                 });
-                updateStickyOffsets();
+                syncHeaderWidths();
                 applyFrozenColumns();
             }
 
@@ -641,6 +653,67 @@
                 });
             }
 
+            function clearHeaderWidths() {
+                tree.querySelectorAll(".nbcot-line-heading-row [data-column-key], .nbcot-line-filter-row [data-column-key]").forEach(function (cell) {
+                    cell.style.removeProperty("width");
+                    cell.style.removeProperty("min-width");
+                    cell.style.removeProperty("max-width");
+                });
+            }
+
+            function firstVisibleBodyRow() {
+                return rows.find(function (row) {
+                    return row.style.display !== "none";
+                }) || rows[0] || null;
+            }
+
+            function syncHeaderWidths() {
+                var sourceRow = firstVisibleBodyRow();
+                if (!headerTable || !bodyTable || !sourceRow) {
+                    return;
+                }
+                clearHeaderWidths();
+                headerTable.style.width = "";
+                var bodyWidth = bodyTable.getBoundingClientRect().width;
+                if (bodyWidth) {
+                    headerTable.style.width = bodyWidth + "px";
+                }
+                visibleColumnKeys().forEach(function (key) {
+                    var bodyCell = sourceRow.querySelector("[data-column-key='" + key + "']");
+                    var width = bodyCell ? bodyCell.getBoundingClientRect().width : 0;
+                    if (!width) {
+                        return;
+                    }
+                    tree.querySelectorAll(".nbcot-line-heading-row [data-column-key='" + key + "'], .nbcot-line-filter-row [data-column-key='" + key + "']").forEach(function (cell) {
+                        cell.style.width = width + "px";
+                        cell.style.minWidth = width + "px";
+                        cell.style.maxWidth = width + "px";
+                    });
+                });
+            }
+
+            function syncHorizontalScroll() {
+                if (!headerScroll || !bodyScroll) {
+                    return;
+                }
+                bodyScroll.addEventListener("scroll", function () {
+                    if (syncingHorizontalScroll) {
+                        return;
+                    }
+                    syncingHorizontalScroll = true;
+                    headerScroll.scrollLeft = bodyScroll.scrollLeft;
+                    syncingHorizontalScroll = false;
+                });
+                headerScroll.addEventListener("scroll", function () {
+                    if (syncingHorizontalScroll) {
+                        return;
+                    }
+                    syncingHorizontalScroll = true;
+                    bodyScroll.scrollLeft = headerScroll.scrollLeft;
+                    syncingHorizontalScroll = false;
+                });
+            }
+
             function applyFrozenColumns() {
                 var leftOffset = 0;
                 var frozenKeys = visibleColumnKeys().slice(0, freezeCount);
@@ -654,15 +727,6 @@
                     leftOffset += headerCell ? headerCell.getBoundingClientRect().width : 0;
                 });
                 updateFreezeControl();
-            }
-
-            function updateStickyOffsets() {
-                var controls = tree.querySelector("[data-line-sticky-controls]");
-                var firstHeaderRow = tree.querySelector(".nbcot-line-heading-row");
-                var controlsHeight = controls ? controls.getBoundingClientRect().height : 0;
-                var headerHeight = firstHeaderRow ? firstHeaderRow.getBoundingClientRect().height : 0;
-                tree.style.setProperty("--nbcot-line-header-top", controlsHeight + "px");
-                tree.style.setProperty("--nbcot-line-filter-top", (controlsHeight + headerHeight) + "px");
             }
 
             function selectedRows() {
@@ -680,6 +744,7 @@
                 tree.querySelectorAll("[data-column-choice]").forEach(function (input) {
                     input.checked = !hiddenColumns.has(input.getAttribute("data-column-choice"));
                 });
+                syncHeaderWidths();
                 applyFrozenColumns();
                 applyRowColors();
             }
@@ -878,11 +943,12 @@
                 applyColumnOrder();
                 applyColumnVisibility();
             });
+            syncHorizontalScroll();
             columnOrder = defaultColumnOrder();
             loadColumnConfig();
             sortAndRender();
             window.addEventListener("resize", function () {
-                updateStickyOffsets();
+                syncHeaderWidths();
                 applyFrozenColumns();
             });
         });
