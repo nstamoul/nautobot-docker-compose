@@ -97,7 +97,6 @@ query GetOrderDetails($input: OrderSearchInput) {
         }
         serialNumberAttributes {
           serialNumber
-          parentSerialNumber
           macAddresses
           imeiNumber
           instanceNumber
