@@ -24,6 +24,11 @@ items = (
             ),
         ),
     ),
+    NavMenuItem(
+        link="plugins:nbcot:ciscoorder_archived_list",
+        name="Archived Orders",
+        permissions=["nbcot.view_ciscoorder"],
+    ),
 )
 
 menu_items = (

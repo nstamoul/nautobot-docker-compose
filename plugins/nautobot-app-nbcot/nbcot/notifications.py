@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from html import escape
 
 import requests
 from django.conf import settings
@@ -14,9 +15,15 @@ from nbcot.choices import OrderUpdateTypeChoices
 
 LOGGER = logging.getLogger(__name__)
 NOTIFIABLE_UPDATE_TYPES = {
-    OrderUpdateTypeChoices.DATE_CHANGED,
-    OrderUpdateTypeChoices.STATUS_CHANGED,
-    OrderUpdateTypeChoices.SHIPMENT_CHANGED,
+    update_type
+    for update_type in (
+        OrderUpdateTypeChoices.DATE_CHANGED,
+        getattr(OrderUpdateTypeChoices, "LINE_DATE_CHANGED", None),
+        getattr(OrderUpdateTypeChoices, "LINE_STATUS_CHANGED", None),
+        OrderUpdateTypeChoices.STATUS_CHANGED,
+        OrderUpdateTypeChoices.SHIPMENT_CHANGED,
+    )
+    if update_type is not None
 }
 
 
@@ -37,6 +44,11 @@ def _build_message(order, changes) -> tuple[str, str]:
     for change in changes:
         lines.append(f"- {change.get_update_type_display()}: {change.summary}")
     return subject, "\n".join(lines)
+
+
+def _format_teams_message(message: str) -> str:
+    """Format a plain-text notification body for Power Automate's Teams action."""
+    return escape(message).replace("\n", "<br>")
 
 
 def notify_order_changes(order, changes) -> None:
@@ -67,7 +79,7 @@ def notify_order_changes(order, changes) -> None:
         try:
             requests.post(
                 webhook_url,
-                json={"text": message},
+                json={"text": _format_teams_message(message)},
                 timeout=10,
             ).raise_for_status()
         except Exception:  # pragma: no cover - defensive for live Teams webhook failures

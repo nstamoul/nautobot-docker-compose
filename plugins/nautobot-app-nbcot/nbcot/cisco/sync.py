@@ -15,6 +15,11 @@ from .client import CiscoGraphQLClient
 from .normalizers import CiscoPayloadNormalizer
 
 
+def _date_to_iso(value):
+    """Return a date value suitable for JSON details comparisons."""
+    return value.isoformat() if value else None
+
+
 class CiscoOrderSynchronizer:
     """Search, normalize, and persist Cisco order data."""
 
@@ -74,7 +79,10 @@ class CiscoOrderSynchronizer:
             line.line_key: {
                 "line_number": line.line_number,
                 "sku": line.sku,
+                "status": line.status,
                 "shipment_status": line.shipment_status,
+                "promised_delivery_date": _date_to_iso(line.promised_delivery_date),
+                "estimated_delivery_date": _date_to_iso(line.estimated_delivery_date),
             }
             for line in order.lines.all()
         }
@@ -248,9 +256,42 @@ class CiscoOrderSynchronizer:
                 )
             )
 
+        line_status_changes = []
+        line_date_changes = []
         shipment_changes = []
         for line in order.lines.all():
             previous_line = previous_line_state.get(line.line_key)
+            previous_status = previous_line["status"] if previous_line else ""
+            if previous_status != line.status:
+                line_status_changes.append(
+                    {
+                        "line_key": line.line_key,
+                        "line_number": line.line_number,
+                        "sku": line.sku,
+                        "before": previous_status,
+                        "after": line.status,
+                    }
+                )
+
+            previous_dates = {
+                "promised_delivery_date": previous_line["promised_delivery_date"] if previous_line else None,
+                "estimated_delivery_date": previous_line["estimated_delivery_date"] if previous_line else None,
+            }
+            current_dates = {
+                "promised_delivery_date": _date_to_iso(line.promised_delivery_date),
+                "estimated_delivery_date": _date_to_iso(line.estimated_delivery_date),
+            }
+            if previous_dates != current_dates:
+                line_date_changes.append(
+                    {
+                        "line_key": line.line_key,
+                        "line_number": line.line_number,
+                        "sku": line.sku,
+                        "before": previous_dates,
+                        "after": current_dates,
+                    }
+                )
+
             previous_shipment = previous_line["shipment_status"] if previous_line else ""
             if previous_shipment == line.shipment_status:
                 continue
@@ -262,6 +303,30 @@ class CiscoOrderSynchronizer:
                     "before": previous_shipment,
                     "after": line.shipment_status,
                 }
+            )
+
+        if line_status_changes:
+            updates.append(
+                CiscoOrderUpdate.objects.create(
+                    order=order,
+                    update_type=OrderUpdateTypeChoices.LINE_STATUS_CHANGED,
+                    source=source,
+                    summary="Line status changed.",
+                    details={"changes": line_status_changes},
+                    raw_payload=snapshot.raw_payload,
+                )
+            )
+
+        if line_date_changes:
+            updates.append(
+                CiscoOrderUpdate.objects.create(
+                    order=order,
+                    update_type=OrderUpdateTypeChoices.LINE_DATE_CHANGED,
+                    source=source,
+                    summary="Line delivery dates changed.",
+                    details={"changes": line_date_changes},
+                    raw_payload=snapshot.raw_payload,
+                )
             )
 
         if shipment_changes:

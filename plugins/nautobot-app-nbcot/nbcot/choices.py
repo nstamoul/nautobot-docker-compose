@@ -53,6 +53,8 @@ class OrderUpdateTypeChoices(ChoiceSet):
     DATE_CHANGED = "date_changed"
     EXCEPTION_CHANGED = "exception_changed"
     SHIPMENT_CHANGED = "shipment_changed"
+    LINE_STATUS_CHANGED = "line_status_changed"
+    LINE_DATE_CHANGED = "line_date_changed"
     SYNC_ERROR = "sync_error"
 
     CHOICES = (
@@ -61,5 +63,7 @@ class OrderUpdateTypeChoices(ChoiceSet):
         (DATE_CHANGED, "Date Changed"),
         (EXCEPTION_CHANGED, "Exception Changed"),
         (SHIPMENT_CHANGED, "Shipment Changed"),
+        (LINE_STATUS_CHANGED, "Line Status Changed"),
+        (LINE_DATE_CHANGED, "Line Date Changed"),
         (SYNC_ERROR, "Sync Error"),
     )

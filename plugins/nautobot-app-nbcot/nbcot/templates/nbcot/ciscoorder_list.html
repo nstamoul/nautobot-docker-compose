@@ -7,10 +7,6 @@
         <a class="btn btn-outline-primary" href="{% url 'plugins:nbcot:ciscoorder_list' %}">
             Active Orders
         </a>
-    {% else %}
-        <a class="btn btn-outline-secondary" href="{% url 'plugins:nbcot:ciscoorder_archived_list' %}">
-            Archived Orders
-        </a>
     {% endif %}
     <button class="btn btn-outline-primary" type="button" data-nbcot-bulk-action="refresh">
         <span class="mdi mdi-refresh" aria-hidden="true"></span>

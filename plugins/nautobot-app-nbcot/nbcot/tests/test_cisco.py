@@ -444,6 +444,87 @@ class CiscoOrderSynchronizerTest(TestCase):
         self.assertEqual(order.status, "Shipped")
         self.assertTrue(CiscoOrderUpdate.objects.filter(order=order, update_type="status_changed").exists())
 
+    @patch("nbcot.cisco.sync.notify_order_changes")
+    def test_sync_tracks_and_notifies_line_status_and_delivery_date_changes(self, mock_notify):
+        """Changing only line status or line delivery dates should create line-level updates."""
+        order = fixtures.create_ciscoorder(
+            order_number="SO-9006",
+            status="Submitted",
+            estimated_delivery_date="2026-04-20",
+        )
+        fixtures.create_line(
+            order,
+            line_key="server-1",
+            line_number="1.1",
+            sku="UCSC-C240-M7SX",
+            status="Booked",
+            promised_delivery_date="2026-04-20",
+            estimated_delivery_date="2026-04-21",
+            shipment_status="In Progress",
+            is_tracked=True,
+        )
+        payload = {
+            "orderNumber": "SO-9006",
+            "status": "Submitted",
+            "estimatedDeliveryDate": "2026-04-20",
+            "lines": [
+                {
+                    "lineKey": "server-1",
+                    "lineNumber": "1.1",
+                    "sku": "UCSC-C240-M7SX",
+                    "status": "Closed",
+                    "shippingAttributes": {
+                        "shipSetStatus": "In Progress",
+                        "promisedDeliveryDate": "2026-04-22",
+                        "estimatedDeliveryDate": "2026-04-24",
+                    },
+                }
+            ],
+        }
+        synchronizer = self._build_synchronizer(payload)
+
+        _, changes = synchronizer.sync_order_by_number("SO-9006")
+
+        self.assertEqual({change.update_type for change in changes}, {"line_status_changed", "line_date_changed"})
+        line_status_update = CiscoOrderUpdate.objects.get(order=order, update_type="line_status_changed")
+        self.assertEqual(
+            line_status_update.details["changes"],
+            [
+                {
+                    "line_key": "server-1",
+                    "line_number": "1.1",
+                    "sku": "UCSC-C240-M7SX",
+                    "before": "Booked",
+                    "after": "Closed",
+                }
+            ],
+        )
+        line_date_update = CiscoOrderUpdate.objects.get(order=order, update_type="line_date_changed")
+        self.assertEqual(
+            line_date_update.details["changes"],
+            [
+                {
+                    "line_key": "server-1",
+                    "line_number": "1.1",
+                    "sku": "UCSC-C240-M7SX",
+                    "before": {
+                        "promised_delivery_date": "2026-04-20",
+                        "estimated_delivery_date": "2026-04-21",
+                    },
+                    "after": {
+                        "promised_delivery_date": "2026-04-22",
+                        "estimated_delivery_date": "2026-04-24",
+                    },
+                }
+            ],
+        )
+        mock_notify.assert_called_once()
+        notified_changes = mock_notify.call_args.args[1]
+        self.assertEqual(
+            {change.update_type for change in notified_changes},
+            {"line_status_changed", "line_date_changed"},
+        )
+
     def test_sync_marks_selected_lines_tracked(self):
         """Synchronizer should persist item-level tracking choices by line key."""
         payload = {
