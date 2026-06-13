@@ -18,6 +18,14 @@ IMAGE_COMPONENTS = {
     "vpn": ("SHMS_VPN_IMAGE", IMAGE_VPN, "shms-vpn"),
     "vpn-control": ("SHMS_VPN_CONTROL_API_IMAGE", IMAGE_VPN_CONTROL_API, "shms-vpn-control-api"),
 }
+CANONICAL_IMAGE_REPOS = {env_key: image for env_key, image, _label in IMAGE_COMPONENTS.values()}
+LEGACY_IMAGE_REPOS = {
+    "ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot": (
+        "This is the old compose-built Nautobot image namespace; it can carry "
+        "stale embedded plugin code from the compose repo instead of the "
+        "canonical shms-nautobot source repository."
+    ),
+}
 COMPONENT_ALIASES = {
     "all": "all",
     "app": "nautobot",
@@ -126,6 +134,7 @@ def _write_env_file(env: dict):
 
 def _write_env_path(env_path: Path, env: dict):
     """Write a dict back to an env file preserving existing key order."""
+    _validate_env_image_pins(env, str(env_path))
     lines = []
     existing = env_path.read_text().splitlines() if env_path.exists() else []
     written = set()
@@ -148,6 +157,7 @@ def _write_env_path(env_path: Path, env: dict):
 
 def _write_local_image_updates(updates: dict):
     """Update selected image pins in all local production env files."""
+    _validate_image_updates(updates)
     for env_name in REMOTE_ENV_FILES:
         env_path = COMPOSE_DIR / env_name
         if not env_path.exists():
@@ -215,7 +225,53 @@ def _resolve_image_updates(tag: str, components: str) -> tuple[dict, list[str]]:
         digest = _gh_digest(_pkg_name(image), tag)
         updates[env_key] = f"{image}@{digest}"
         print(f"  {label}: {digest}")
+    _validate_image_updates(updates)
     return updates, selected
+
+
+def _image_ref_uses_repo(image_ref: str, expected_repo: str) -> bool:
+    """Return True when an image reference belongs to the expected repository."""
+    ref = (image_ref or "").strip()
+    return ref == expected_repo or ref.startswith(f"{expected_repo}:") or ref.startswith(f"{expected_repo}@")
+
+
+def _legacy_image_hint(image_ref: str) -> str:
+    """Return a specific explanation for known legacy image repositories."""
+    for legacy_repo, hint in LEGACY_IMAGE_REPOS.items():
+        if _image_ref_uses_repo(image_ref, legacy_repo):
+            return f" {hint}"
+    return ""
+
+
+def _validate_image_pin(env_key: str, image_ref: str):
+    """Validate that a production image pin uses the canonical component image."""
+    expected_repo = CANONICAL_IMAGE_REPOS.get(env_key)
+    if not expected_repo or not image_ref:
+        return
+
+    if _image_ref_uses_repo(image_ref, expected_repo):
+        return
+
+    raise ValueError(
+        f"{env_key} must use canonical image repository {expected_repo}; got {image_ref!r}."
+        f"{_legacy_image_hint(image_ref)} Build through the component repository CI and "
+        "promote the resulting tag or digest from this compose repository."
+    )
+
+
+def _validate_image_updates(updates: dict):
+    """Validate pending image updates before writing them anywhere."""
+    for env_key, image_ref in updates.items():
+        _validate_image_pin(env_key, image_ref)
+
+
+def _validate_env_image_pins(env: dict, source: str):
+    """Validate image pins loaded from an env file."""
+    for env_key in CANONICAL_IMAGE_REPOS:
+        try:
+            _validate_image_pin(env_key, env.get(env_key, ""))
+        except ValueError as exc:
+            raise ValueError(f"{source}: {exc}") from exc
 
 
 def _ssh(node: str, cmd: str, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess:
@@ -230,12 +286,44 @@ def _remote_update_env(node: str, updates: dict, compose_dir: str = "/opt/nautob
     Keeping the two files aligned prevents a later compose/deploy operation from
     resurrecting an older image after a successful promotion.
     """
+    _validate_image_updates(updates)
     script = f"""
 from pathlib import Path
 
 compose_dir = Path({compose_dir!r})
 updates = {updates!r}
 env_files = {REMOTE_ENV_FILES!r}
+canonical_image_repos = {CANONICAL_IMAGE_REPOS!r}
+legacy_image_repos = {LEGACY_IMAGE_REPOS!r}
+
+
+def image_ref_uses_repo(image_ref, expected_repo):
+    ref = (image_ref or "").strip()
+    return ref == expected_repo or ref.startswith(f"{{expected_repo}}:") or ref.startswith(f"{{expected_repo}}@")
+
+
+def legacy_image_hint(image_ref):
+    for legacy_repo, hint in legacy_image_repos.items():
+        if image_ref_uses_repo(image_ref, legacy_repo):
+            return f" {{hint}}"
+    return ""
+
+
+def validate_image_pin(env_key, image_ref, source):
+    expected_repo = canonical_image_repos.get(env_key)
+    if not expected_repo or not image_ref:
+        return
+    if image_ref_uses_repo(image_ref, expected_repo):
+        return
+    raise ValueError(
+        f"{{source}}: {{env_key}} must use canonical image repository {{expected_repo}}; "
+        f"got {{image_ref!r}}.{{legacy_image_hint(image_ref)}}"
+    )
+
+
+def validate_env(env, source):
+    for env_key in canonical_image_repos:
+        validate_image_pin(env_key, env.get(env_key, ""), source)
 
 for env_name in env_files:
     env_path = compose_dir / env_name
@@ -244,6 +332,15 @@ for env_name in env_files:
         continue
 
     lines = env_path.read_text().splitlines()
+    current_env = {{}}
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key, value = stripped.split("=", 1)
+            current_env[key.strip()] = value.strip()
+    current_env.update(updates)
+    validate_env(current_env, str(env_path))
+
     written = set()
     output = []
 
@@ -485,6 +582,7 @@ def promote_nodes(context, tag, components="all", yes=False):
 def images(context, tag=None):
     """List current image versions: what is pinned in .env vs what is running."""
     env = _read_env_file()
+    _validate_env_image_pins(env, str(ENV_FILE))
     print("\n--- Pinned in .env ---")
     for k in ("SHMS_NAUTOBOT_IMAGE", "SHMS_VPN_IMAGE", "SHMS_VPN_CONTROL_API_IMAGE"):
         print(f"  {k}={env.get(k, '(not set)')}")

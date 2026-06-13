@@ -31,6 +31,20 @@ The active production image authorities are:
 | Remote worker runtime | `nstamoul/nautobot_worker` | `ghcr.io/nstamoul/nautobot_worker` | piconfig/Vault worker image contract, not this compose repo |
 | piconfig backend | `nstamoul/piconfigurator_v2` | `ghcr.io/nstamoul/piconfigurator_v2/backend` | piconfig HA `.env` and compose rollout |
 
+The Nautobot app image must never come from
+`ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot`. That was a
+compose-repository-built image namespace and is not the source of truth for
+embedded Nautobot apps. It can contain whatever plugin tree existed in the
+compose repository at build time, which is how an image can include newer NBCOT
+changes while missing Connectivity Matrix work such as aggregation groups,
+Migration Workbench, and migration bundles.
+
+The only supported Nautobot app image authority is:
+
+```text
+SHMS_NAUTOBOT_IMAGE=ghcr.io/nstamoul/shms-nautobot@sha256:<digest>
+```
+
 ---
 
 ## Repository Map
@@ -393,6 +407,10 @@ migration rollback path separately.
 ## Operational Guardrails
 
 - Do not build production images locally except as an emergency diagnostic.
+- Do not use `ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot` for
+  `SHMS_NAUTOBOT_IMAGE`; it is the old compose-built image namespace. Promotion
+  tooling now rejects it and any other non-canonical image repository for
+  managed SHMS image pins.
 - Do not promote images from `nautobot_apps_repo`; it is archived legacy.
 - Do not put app/plugin code back into `nautobot_jobs_repo`.
 - Do not build VPN appliance or VPN control API for ARM; those are HA-node
