@@ -1,0 +1,29 @@
+{
+    "cookiecutter": {
+        "codeowner_github_usernames": "",
+        "full_name": "Nikos Stamoulis",
+        "email": "nstamoul0@gmail.com",
+        "github_org": "nstam",
+        "app_name": "nbcot",
+        "verbose_name": "NBCOT",
+        "app_slug": "nbcot",
+        "project_slug": "nautobot_cisco_order_tracking",
+        "repo_url": "https://git.space.gr/nstam/nautobot_cisco_order_tracking.git",
+        "base_url": "nbcot",
+        "camel_name": "NBCOT",
+        "project_short_description": "Nautobot Cisco Order Tracking",
+        "model_class_name": "CiscoOrder",
+        "open_source_license": "Not open source",
+        "docs_base_url": "https://docs.nautobot.com",
+        "docs_app_url": "https://docs.nautobot.com/projects/nbcot/en/latest",
+        "_extensions": [
+            "local_extensions.camel_case_to_kebab",
+            "local_extensions.camel_case_to_words",
+            "local_extensions.NautobotVersions"
+        ],
+        "_template": "https://github.com/nautobot/cookiecutter-nautobot-app",
+        "_output_dir": "/tmp/nbcot-scaffold",
+        "_repo_dir": "/Users/nstamoul/.cookiecutters/cookiecutter-nautobot-app/nautobot-app",
+        "_checkout": null
+    }
+}

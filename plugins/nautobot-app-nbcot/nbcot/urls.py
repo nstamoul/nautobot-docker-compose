@@ -1,0 +1,44 @@
+"""Django urlpatterns declaration for nbcot app."""
+
+from django.templatetags.static import static
+from django.urls import path
+from django.views.generic import RedirectView
+from nautobot.apps.urls import NautobotUIViewSetRouter
+
+from nbcot import views
+
+app_name = "nbcot"
+router = NautobotUIViewSetRouter()
+router.register("cisco-orders", views.CiscoOrderUIViewSet)
+
+urlpatterns = [
+    path("", RedirectView.as_view(pattern_name="plugins:nbcot:order_search", permanent=False), name="home"),
+    path("search/", views.OrderSearchView.as_view(), name="order_search"),
+    path("search/preview/", views.OrderPreviewView.as_view(), name="order_preview"),
+    path("ccwr/", views.CCWRSubscriptionSearchView.as_view(), name="subscription_search"),
+    path("search/track/", views.TrackCiscoOrderView.as_view(), name="order_track"),
+    path("cisco-orders/archived/", views.ArchivedCiscoOrderListView.as_view(), name="ciscoorder_archived_list"),
+    path("cisco-orders/export.xlsx", views.ExportSelectedCiscoOrdersView.as_view(), name="ciscoorder_export_selected"),
+    path(
+        "cisco-orders/bulk/<str:action>/",
+        views.BulkCiscoOrderActionView.as_view(),
+        name="ciscoorder_bulk_action",
+    ),
+    path("cisco-orders/<uuid:pk>/refresh/", views.RefreshCiscoOrderView.as_view(), name="ciscoorder_refresh"),
+    path("cisco-orders/<uuid:pk>/archive/", views.ArchiveCiscoOrderView.as_view(), name="ciscoorder_archive"),
+    path("cisco-orders/<uuid:pk>/unarchive/", views.UnarchiveCiscoOrderView.as_view(), name="ciscoorder_unarchive"),
+    path("cisco-orders/<uuid:pk>/export.xlsx", views.ExportCiscoOrderView.as_view(), name="ciscoorder_export"),
+    path(
+        "cisco-orders/<uuid:pk>/toggle-tracking/",
+        views.ToggleTrackingView.as_view(),
+        name="ciscoorder_toggle_tracking",
+    ),
+    path(
+        "cisco-orders/<uuid:pk>/line-tracking/",
+        views.UpdateCiscoOrderLineTrackingView.as_view(),
+        name="ciscoorder_line_tracking",
+    ),
+    path("docs/", RedirectView.as_view(url=static("nbcot/docs/index.html")), name="docs"),
+]
+
+urlpatterns += router.urls

@@ -1,0 +1,9 @@
+*.deb
+*.rpm
+*.pkg
+*.run
+*.zip
+*.tar
+*.tar.gz
+!cisco-secure-client-linux64-*-predeploy-deb-k9.tgz
+!cisco-secure-client-linux-arm64-*-predeploy-deb-k9.tgz

@@ -1,0 +1,79 @@
+{% extends 'generic/object_detail.html' %}
+{% load helpers %}
+
+{% block extra_buttons %}
+<a href="{% url 'plugins:nautobot_connectivity_matrix:matrix' pk=object.pk %}" class="btn btn-primary">
+    <i class="mdi mdi-table-large"></i> Open Matrix
+</a>
+{% endblock %}
+
+{% block content_left_page %}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <strong>Batch Details</strong>
+    </div>
+    <table class="table table-hover panel-body attr-table">
+        <tr>
+            <td>Name</td>
+            <td>{{ object.name }}</td>
+        </tr>
+        <tr>
+            <td>Description</td>
+            <td>{{ object.description|placeholder }}</td>
+        </tr>
+        <tr>
+            <td>Tenant</td>
+            <td>{{ object.tenant|hyperlinked_object|placeholder }}</td>
+        </tr>
+        <tr>
+            <td>Location</td>
+            <td>{{ object.location|hyperlinked_object|placeholder }}</td>
+        </tr>
+        <tr>
+            <td>Status</td>
+            <td>
+                <span class="badge
+                    {% if object.status == 'completed' %}bg-success
+                    {% elif object.status == 'approved' %}bg-primary
+                    {% elif object.status == 'partial' %}bg-warning
+                    {% else %}bg-secondary{% endif %}">
+                    {{ object.status }}
+                </span>
+            </td>
+        </tr>
+    </table>
+</div>
+{% endblock %}
+
+{% block content_right_page %}
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <strong>Statistics</strong>
+    </div>
+    <table class="table table-hover panel-body attr-table">
+        <tr>
+            <td>Total Connections</td>
+            <td>{{ object.connection_count }}</td>
+        </tr>
+        <tr>
+            <td>Validated</td>
+            <td>{{ object.validated_count }}</td>
+        </tr>
+        <tr>
+            <td>Executed</td>
+            <td>{{ object.executed_count }}</td>
+        </tr>
+    </table>
+</div>
+
+<div class="panel panel-default">
+    <div class="panel-heading">
+        <strong>Quick Actions</strong>
+    </div>
+    <div class="panel-body">
+        <a href="{% url 'plugins:nautobot_connectivity_matrix:matrix' pk=object.pk %}" class="btn btn-success btn-block">
+            <i class="mdi mdi-table-large"></i> Open Connectivity Matrix
+        </a>
+    </div>
+</div>
+{% endblock %}

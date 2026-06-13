@@ -1,0 +1,226 @@
+---
+x-shms-hosts: &shms-hosts
+  - "sot3.shms.local:172.20.11.210"
+  - "vault.shms.local:172.20.11.214"
+  - "nb-ha-01.shms.local:172.20.11.211"
+  - "nb-ha-02.shms.local:172.20.11.212"
+  - "nb-etcd-witness.shms.local:172.20.11.213"
+  - "nb-db-vip.shms.local:172.20.11.215"
+  - "nb-redis-vip.shms.local:172.20.11.215"
+  - "s3.minio.shms.local:172.20.11.215"
+  - "console.minio.shms.local:172.20.11.215"
+  - "nb-minio-01.shms.local:172.20.11.216"
+  - "nb-minio-02.shms.local:172.20.11.217"
+  - "nb-minio-03.shms.local:172.20.11.218"
+  - "nb-minio-04.shms.local:172.20.11.219"
+
+x-nautobot-build: &nautobot-build
+  build:
+    args:
+      NAUTOBOT_VERSION: "${NAUTOBOT_VERSION}"
+      PYTHON_VER: "${PYTHON_VER}"
+      NAUTOBOT_BASE_IMAGE: "${NAUTOBOT_BASE_IMAGE:-ghcr.io/nautobot/nautobot:${NAUTOBOT_VERSION}-py${PYTHON_VER}}"
+      NAUTOBOT_DEV_IMAGE: "${NAUTOBOT_DEV_IMAGE:-ghcr.io/nautobot/nautobot-dev:${NAUTOBOT_VERSION}-py${PYTHON_VER}}"
+    context: "../"
+    target: "nautobot"
+    dockerfile: "environments/Dockerfile"
+
+x-nautobot-vault-agent-env: &nautobot-vault-agent-env
+  SHMS_VAULT_AGENT_ENABLED: "${SHMS_VAULT_AGENT_ENABLED:-true}"
+  SHMS_VAULT_TOKEN_WAIT_SECONDS: "${SHMS_VAULT_TOKEN_WAIT_SECONDS:-60}"
+
+x-nautobot-base: &nautobot-base
+  image: "${SHMS_NAUTOBOT_IMAGE:-ghcr.io/nstamoul/nautobot-docker-compose/shms-nautobot:main}"
+  env_file:
+    - path: "local.shms.env"
+      required: true
+    - path: "creds.shms.env"
+      required: false
+  extra_hosts: *shms-hosts
+  restart: "unless-stopped"
+  tty: true
+  volumes:
+    - "../jobs:/opt/nautobot/jobs"
+    - "/opt/nautobot/git:/opt/nautobot/git"
+    - "../patches_runtime:/opt/nautobot/patches_runtime:ro"
+    - "../scripts/shms-nautobot-entrypoint.sh:/usr/local/bin/shms-nautobot-entrypoint.sh:ro"
+    - "/data/nautobot/media:/opt/nautobot/media"
+    - "/data/nautobot/static:/opt/nautobot/static"
+    - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+    - "/etc/localtime:/etc/localtime:ro"
+    - "/etc/timezone:/etc/timezone:ro"
+  environment:
+    <<: *nautobot-vault-agent-env
+  entrypoint:
+    - "/usr/local/bin/shms-nautobot-entrypoint.sh"
+
+x-vault-agent-base: &vault-agent-base
+  image: "${SHMS_VAULT_AGENT_IMAGE:-hashicorp/vault:1.21.4}"
+  env_file:
+    - path: "local.shms.env"
+      required: true
+  extra_hosts: *shms-hosts
+  restart: "unless-stopped"
+  cap_add:
+    - "IPC_LOCK"
+  volumes:
+    - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+
+services:
+  vault-agent-nautobot-web:
+    <<: *vault-agent-base
+    container_name: "vault-agent-nautobot-web"
+    command:
+      - "agent"
+      - "-config=/vault/config/nautobot-web-agent.hcl"
+    volumes:
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "./vault-agent-nautobot-web.hcl:/vault/config/nautobot-web-agent.hcl:ro"
+      - "shms_vault_agent_web_runtime:/run/shms-vault-web"
+
+  vault-agent-nautobot-celery:
+    <<: *vault-agent-base
+    container_name: "vault-agent-nautobot-celery"
+    command:
+      - "agent"
+      - "-config=/vault/config/nautobot-celery-agent.hcl"
+    volumes:
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "./vault-agent-nautobot-celery.hcl:/vault/config/nautobot-celery-agent.hcl:ro"
+      - "shms_vault_agent_celery_runtime:/run/shms-vault-celery"
+
+  vault-agent-nautobot-beat:
+    <<: *vault-agent-base
+    container_name: "vault-agent-nautobot-beat"
+    command:
+      - "agent"
+      - "-config=/vault/config/nautobot-beat-agent.hcl"
+    volumes:
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "./vault-agent-nautobot-beat.hcl:/vault/config/nautobot-beat-agent.hcl:ro"
+      - "shms_vault_agent_beat_runtime:/run/shms-vault-beat"
+
+  nautobot:
+    container_name: "nautobot"
+    <<: [*nautobot-base, *nautobot-build]
+    depends_on:
+      vault-agent-nautobot-web:
+        condition: "service_started"
+    environment:
+      <<: *nautobot-vault-agent-env
+      SHMS_VAULT_TOKEN_FILE: "/run/shms-vault-web/nautobot.token"
+      NAUTOBOT_UWSGI_PROCESSES: "${NAUTOBOT_UWSGI_PROCESSES:-5}"
+      NAUTOBOT_UWSGI_LISTEN: "${NAUTOBOT_UWSGI_LISTEN:-1024}"
+      NAUTOBOT_UWSGI_BUFFER_SIZE: "${NAUTOBOT_UWSGI_BUFFER_SIZE:-16384}"
+    volumes:
+      - "../jobs:/opt/nautobot/jobs"
+      - "/opt/nautobot/git:/opt/nautobot/git"
+      - "../patches_runtime:/opt/nautobot/patches_runtime:ro"
+      - "../scripts/shms-nautobot-entrypoint.sh:/usr/local/bin/shms-nautobot-entrypoint.sh:ro"
+      - "/data/nautobot/media:/opt/nautobot/media"
+      - "/data/nautobot/static:/opt/nautobot/static"
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+      - "shms_vault_agent_web_runtime:/run/shms-vault-web"
+    command:
+      - "nautobot-server"
+      - "start"
+      - "--ini"
+      - "/opt/nautobot/uwsgi.ini"
+    ports:
+      - "8081:8080"
+    healthcheck:
+      interval: "30s"
+      timeout: "10s"
+      start_period: "60s"
+      retries: 3
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import sys, urllib.request; req = urllib.request.Request('http://127.0.0.1:8080/login/', headers={'Host': 'sot3.shms.local'}); urllib.request.urlopen(req, timeout=5); sys.exit(0)\" >/dev/null 2>&1 || exit 1",
+        ]
+
+  celery_worker:
+    container_name: "celery_worker"
+    depends_on:
+      vault-agent-nautobot-celery:
+        condition: "service_started"
+      nautobot:
+        condition: "service_started"
+    healthcheck:
+      disable: true
+    command:
+      - "sh"
+      - "-c"
+      - >-
+        nautobot-server celery worker -l $$NAUTOBOT_LOG_LEVEL --events -Q default,breakglass,central-writer
+    environment:
+      <<: *nautobot-vault-agent-env
+      SHMS_VAULT_TOKEN_FILE: "/run/shms-vault-celery/celery.token"
+    volumes:
+      - "../jobs:/opt/nautobot/jobs"
+      - "/opt/nautobot/git:/opt/nautobot/git"
+      - "../patches_runtime:/opt/nautobot/patches_runtime:ro"
+      - "../scripts/shms-nautobot-entrypoint.sh:/usr/local/bin/shms-nautobot-entrypoint.sh:ro"
+      - "/data/nautobot/media:/opt/nautobot/media"
+      - "/data/nautobot/static:/opt/nautobot/static"
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+      - "shms_vault_agent_celery_runtime:/run/shms-vault-celery"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    <<: *nautobot-base
+
+  celery_beat:
+    container_name: "celery_beat"
+    depends_on:
+      vault-agent-nautobot-beat:
+        condition: "service_started"
+      nautobot:
+        condition: "service_started"
+    healthcheck:
+      disable: true
+    command:
+      - "sh"
+      - "-c"
+      - >-
+        nautobot-server celery beat -l $$NAUTOBOT_LOG_LEVEL
+    environment:
+      <<: *nautobot-vault-agent-env
+      SHMS_VAULT_TOKEN_FILE: "/run/shms-vault-beat/beat.token"
+    volumes:
+      - "../jobs:/opt/nautobot/jobs"
+      - "/opt/nautobot/git:/opt/nautobot/git"
+      - "../patches_runtime:/opt/nautobot/patches_runtime:ro"
+      - "../scripts/shms-nautobot-entrypoint.sh:/usr/local/bin/shms-nautobot-entrypoint.sh:ro"
+      - "/data/nautobot/media:/opt/nautobot/media"
+      - "/data/nautobot/static:/opt/nautobot/static"
+      - "/opt/nautobot/certs:/opt/nautobot/certs:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/etc/timezone:/etc/timezone:ro"
+      - "shms_vault_agent_beat_runtime:/run/shms-vault-beat"
+    <<: *nautobot-base
+
+volumes:
+  shms_vault_agent_web_runtime:
+    name: "shms_vault_agent_web_runtime"
+    driver: "local"
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"
+      o: "size=16m,mode=1777"
+  shms_vault_agent_celery_runtime:
+    name: "shms_vault_agent_celery_runtime"
+    driver: "local"
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"
+      o: "size=16m,mode=1777"
+  shms_vault_agent_beat_runtime:
+    name: "shms_vault_agent_beat_runtime"
+    driver: "local"
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"
+      o: "size=16m,mode=1777"

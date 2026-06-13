@@ -1,0 +1,15 @@
+---
+nautobot_software_lifecycle:
+  nautobot_ver: "2.4.2"
+  python_ver: "3.11"
+  # local: false
+  # compose_dir: "/full/path/to/nautobot-app-nautobot_software_lifecycle/development"
+
+# The following is an example of using MySQL as the database backend
+# ---
+# nautobot_software_lifecycle:
+#   compose_files:
+#     - "docker-compose.base.yml"
+#     - "docker-compose.redis.yml"
+#     - "docker-compose.mysql.yml"
+#     - "docker-compose.dev.yml"

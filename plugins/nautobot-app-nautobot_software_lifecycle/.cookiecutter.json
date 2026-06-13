@@ -1,0 +1,29 @@
+{
+    "cookiecutter": {
+        "codeowner_github_usernames": "",
+        "full_name": "Nikolaos Stamoulos",
+        "email": "nstamoul0@gmail.com",
+        "github_org": "nautobot",
+        "app_name": "nautobot_software_lifecycle",
+        "verbose_name": "Nautobot Software Lifecycle",
+        "app_slug": "nautobot_software_lifecycle",
+        "project_slug": "nautobot-app-nautobot_software_lifecycle",
+        "repo_url": "https://github.com/nautobot/nautobot-app-nautobot_software_lifecycle",
+        "base_url": "nautobot_software_lifecycle",
+        "camel_name": "Nautobot_Software_Lifecycle",
+        "project_short_description": "Software License Lifecycle Management application",
+        "model_class_name": "Nautobot_Software_LifecycleExampleModel",
+        "open_source_license": "Apache-2.0",
+        "docs_base_url": "https://docs.nautobot.com",
+        "docs_app_url": "https://docs.nautobot.com/projects/nautobot_software_lifecycle/en/latest",
+        "_extensions": [
+            "local_extensions.camel_case_to_kebab",
+            "local_extensions.camel_case_to_words",
+            "local_extensions.NautobotVersions"
+        ],
+        "_template": "/tmp/cookiecutter-nautobot-app/nautobot-app",
+        "_output_dir": "/opt/_tools/_automation/nautobot_software_lifecycle",
+        "_repo_dir": "/tmp/cookiecutter-nautobot-app/nautobot-app",
+        "_checkout": null
+    }
+}

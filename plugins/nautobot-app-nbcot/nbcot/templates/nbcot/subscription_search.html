@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}NBCOT CCW-R Search{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <strong>Search CCW-R Subscriptions</strong>
+            </div>
+            <div class="panel-body">
+                <form method="get">
+                    <div class="form-group">
+                        {{ form.environment.label_tag }}
+                        {{ form.environment }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.subscription_identifier.label_tag }}
+                        {{ form.subscription_identifier }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.end_customer_name.label_tag }}
+                        {{ form.end_customer_name }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.end_customer_site_id.label_tag }}
+                        {{ form.end_customer_site_id }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.bill_to_id.label_tag }}
+                        {{ form.bill_to_id }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.status.label_tag }}
+                        {{ form.status }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.from_date.label_tag }}
+                        {{ form.from_date }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.to_date.label_tag }}
+                        {{ form.to_date }}
+                    </div>
+                    <hr>
+                    <p class="text-muted">Client-side line filters for exact subscription detail lookups.</p>
+                    <div class="form-group">
+                        {{ form.pak_serial_number.label_tag }}
+                        {{ form.pak_serial_number }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.so_mso_number.label_tag }}
+                        {{ form.so_mso_number }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.po_mpo_number.label_tag }}
+                        {{ form.po_mpo_number }}
+                    </div>
+                    <div class="form-group">
+                        {{ form.line_end_customer.label_tag }}
+                        {{ form.line_end_customer }}
+                    </div>
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </form>
+                {% if error_message %}
+                    <div class="alert alert-danger" style="margin-top: 16px;">
+                        {{ error_message }}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        {% if detail %}
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <strong>Subscription Detail</strong>
+                </div>
+                <div class="panel-body">
+                    <table class="table table-condensed">
+                        <tbody>
+                            <tr><th>Environment</th><td>{{ selected_environment|upper }}</td></tr>
+                            <tr><th>Identifier</th><td>{{ detail.identifier|default:"-" }}</td></tr>
+                            <tr><th>Name</th><td>{{ detail.name|default:"-" }}</td></tr>
+                            <tr><th>Status</th><td>{{ detail.status|default:"-" }}</td></tr>
+                            <tr><th>Activation</th><td>{{ detail.activation_date|default:"-" }}</td></tr>
+                            <tr><th>Start / End</th><td>{{ detail.start_date|default:"-" }} / {{ detail.end_date|default:"-" }}</td></tr>
+                            <tr><th>End Customer</th><td>{{ detail.end_customer_name|default:"-" }}{% if detail.end_customer_id %} ({{ detail.end_customer_id }}){% endif %}</td></tr>
+                            <tr><th>Bill To</th><td>{{ detail.bill_to_name|default:"-" }}{% if detail.bill_to_id %} ({{ detail.bill_to_id }}){% endif %}</td></tr>
+                            <tr><th>Install Site</th><td>{{ detail.install_site_name|default:"-" }}{% if detail.install_site_id %} ({{ detail.install_site_id }}){% endif %}</td></tr>
+                            <tr><th>Billing Preference</th><td>{{ detail.billing_preference|default:"-" }}</td></tr>
+                            <tr><th>Auto Renewal</th><td>{{ detail.has_auto_renewal|yesno:"Yes,No,Unknown" }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <strong>Subscription Lines</strong>
+                </div>
+                <div class="panel-body">
+                    {% if detail_lines %}
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>SKU</th>
+                                    <th>Description</th>
+                                    <th>PAK / Serial / Instance</th>
+                                    <th>SO / MSO</th>
+                                    <th>PO / MPO</th>
+                                    <th>Qty</th>
+                                    <th>Line</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for line in detail_lines %}
+                                    <tr>
+                                        <td>{{ line.sku|default:"-" }}</td>
+                                        <td>{{ line.description|default:"-" }}</td>
+                                        <td>{{ line.serial_pak_instance_number|default:"-" }}</td>
+                                        <td>{{ line.sales_order_number|default:line.web_order_id|default:"-" }}</td>
+                                        <td>{{ line.purchase_order_number|default:line.purchase_order_line_reference|default:"-" }}</td>
+                                        <td>{{ line.quantity }} {{ line.unit_of_measure }}</td>
+                                        <td>{{ line.user_interface_line_id|default:line.line_id|default:"-" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="text-muted">No subscription lines matched the current filters.</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <strong>Search Results</strong>
+                </div>
+                <div class="panel-body">
+                    {% if results %}
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Environment</th>
+                                    <th>Identifier</th>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>End Customer</th>
+                                    <th>Bill To</th>
+                                    <th>Start / End</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for result in results %}
+                                    <tr>
+                                        <td><span class="label label-info">{{ selected_environment|upper }}</span></td>
+                                        <td>
+                                            <a href="?environment={{ selected_environment }}&subscription_identifier={{ result.identifier|urlencode }}">
+                                                {{ result.identifier|default:"-" }}
+                                            </a>
+                                        </td>
+                                        <td>{{ result.name|default:"-" }}</td>
+                                        <td>{{ result.status|default:"-" }}</td>
+                                        <td>{{ result.end_customer_name|default:"-" }}</td>
+                                        <td>{{ result.bill_to_name|default:"-" }}</td>
+                                        <td>{{ result.start_date|default:"-" }} / {{ result.end_date|default:"-" }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% elif request.GET %}
+                        <p class="text-muted">No CCW-R subscriptions matched the current search.</p>
+                    {% else %}
+                        <p class="text-muted">Search CCW-R by exact subscription identifier or by party and date window.</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,15 +1,115 @@
 ---
 name: "CI"
 on: # yamllint disable
-  - "push"
-  - "pull_request"
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_vpn:
+        description: "Build and push SHMS VPN images"
+        required: false
+        default: false
+        type: "boolean"
+permissions:
+  contents: "read"
+  packages: "write"
+env:
+  REGISTRY: "ghcr.io"
+  SHMS_NAUTOBOT_IMAGE: "ghcr.io/${{ github.repository }}/shms-nautobot"
+  SHMS_VPN_IMAGE: "ghcr.io/${{ github.repository }}/shms-vpn"
+  SHMS_VPN_CONTROL_API_IMAGE: "ghcr.io/${{ github.repository }}/shms-vpn-control-api"
+  NAUTOBOT_VERSION: "3.1.0"
+  PYTHON_VER: "3.11"
 jobs:
   yamllint:
     runs-on: [self-hosted, otepiconfig]
     steps:
       - name: "Check out repository code"
-        uses: "actions/checkout@v2"
+        uses: "actions/checkout@v4"
       - name: "Install yamllint"
         run: "python3 -m pip install --user --no-cache-dir yamllint"
       - name: "Run yamllint"
-        run: "yamllint ."
+        run: "python3 -m yamllint ."
+  build-shms-nautobot:
+    runs-on: [self-hosted, otepiconfig]
+    needs: ["yamllint"]
+    if: "github.event_name != 'pull_request'"
+    steps:
+      - name: "Check out repository code"
+        uses: "actions/checkout@v4"
+      - name: "Log in to GHCR"
+        run: "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+      - name: "Build and push SHMS Nautobot image"
+        shell: "bash"
+        run: |
+          set -euo pipefail
+          ref_tag="$(printf '%s' "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g')"
+          tags=(
+            "--tag" "${SHMS_NAUTOBOT_IMAGE}:${GITHUB_SHA}"
+            "--tag" "${SHMS_NAUTOBOT_IMAGE}:${ref_tag}"
+          )
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            tags+=("--tag" "${SHMS_NAUTOBOT_IMAGE}:main")
+          fi
+          builder="shms-nautobot-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker buildx create --driver docker-container --use --name "${builder}"
+          trap 'docker buildx rm "${builder}" >/dev/null 2>&1 || true' EXIT
+          docker buildx inspect --bootstrap
+          docker buildx build \
+            --platform "linux/amd64" \
+            --push \
+            --build-arg "NAUTOBOT_VERSION=${NAUTOBOT_VERSION}" \
+            --build-arg "PYTHON_VER=${PYTHON_VER}" \
+            "${tags[@]}" \
+            --file "environments/Dockerfile" \
+            .
+  build-shms-vpn:
+    runs-on: [self-hosted, otepiconfig]
+    needs: ["build-shms-nautobot"]
+    if: "github.event_name == 'workflow_dispatch' && inputs.build_vpn"
+    steps:
+      - name: "Check out repository code"
+        uses: "actions/checkout@v4"
+      - name: "Log in to GHCR"
+        run: "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+      - name: "Build and push SHMS VPN image"
+        shell: "bash"
+        run: |
+          set -euo pipefail
+          ref_tag="$(printf '%s' "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g')"
+          builder="shms-vpn-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker run --privileged --rm tonistiigi/binfmt --install amd64,arm64
+          docker buildx create --driver docker-container --use --name "${builder}"
+          trap 'docker buildx rm "${builder}" >/dev/null 2>&1 || true' EXIT
+          docker buildx inspect --bootstrap
+          docker buildx build \
+            --platform "linux/amd64,linux/arm64" \
+            --push \
+            --tag "${SHMS_VPN_IMAGE}:${GITHUB_SHA}" \
+            --tag "${SHMS_VPN_IMAGE}:${ref_tag}" \
+            vpn/vpn
+  build-shms-vpn-control-api:
+    runs-on: [self-hosted, otepiconfig]
+    needs: ["build-shms-nautobot"]
+    if: "github.event_name == 'workflow_dispatch' && inputs.build_vpn"
+    steps:
+      - name: "Check out repository code"
+        uses: "actions/checkout@v4"
+      - name: "Log in to GHCR"
+        run: "echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+      - name: "Build and push SHMS VPN control API image"
+        shell: "bash"
+        run: |
+          set -euo pipefail
+          ref_tag="$(printf '%s' "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g')"
+          builder="shms-vpn-control-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker buildx create --driver docker-container --use --name "${builder}"
+          trap 'docker buildx rm "${builder}" >/dev/null 2>&1 || true' EXIT
+          docker buildx inspect --bootstrap
+          docker buildx build \
+            --platform "linux/amd64" \
+            --push \
+            --build-arg "SHMS_NAUTOBOT_IMAGE=${SHMS_NAUTOBOT_IMAGE}:${GITHUB_SHA}" \
+            --tag "${SHMS_VPN_CONTROL_API_IMAGE}:${GITHUB_SHA}" \
+            --tag "${SHMS_VPN_CONTROL_API_IMAGE}:${ref_tag}" \
+            vpn/VPN_Control_API

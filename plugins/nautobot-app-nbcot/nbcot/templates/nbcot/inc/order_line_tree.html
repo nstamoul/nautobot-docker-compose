@@ -1,0 +1,1056 @@
+{% with table_id=line_tree_id|default:"nbcot-line-tree" %}
+<style>
+    .nbcot-line-tree .nbcot-line-toolbar {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-stack {
+        background: #fff;
+        border-bottom: 1px solid #ddd;
+        position: relative;
+        z-index: 30;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-stack.is-fixed {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        left: var(--nbcot-line-fixed-left, 0px);
+        position: fixed;
+        top: var(--nbcot-line-fixed-top, 0px);
+        width: var(--nbcot-line-fixed-width, auto);
+        z-index: 1030;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-spacer {
+        display: none;
+        height: var(--nbcot-line-sticky-height, 0px);
+    }
+    .nbcot-line-tree .nbcot-line-sticky-spacer.is-active {
+        display: block;
+    }
+    .nbcot-line-tree .nbcot-line-sticky-controls {
+        background: #fff;
+        padding: 8px 0 10px;
+    }
+    .nbcot-line-tree .nbcot-line-header-scroll {
+        background: #fff;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+    .nbcot-line-tree .nbcot-line-header-scroll::-webkit-scrollbar {
+        display: none;
+    }
+    .nbcot-line-tree .nbcot-line-header-table,
+    .nbcot-line-tree .nbcot-line-body-table {
+        min-width: 100%;
+        margin-bottom: 0;
+        width: max-content;
+    }
+    .nbcot-line-tree .nbcot-line-context-toolbar {
+        align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 0;
+    }
+    .nbcot-line-tree .nbcot-line-filter {
+        margin-left: auto;
+        max-width: 360px;
+        min-width: 260px;
+    }
+    .nbcot-line-tree .nbcot-line-multivalue {
+        display: block;
+        max-height: 9em;
+        overflow: hidden;
+        white-space: pre-line;
+    }
+    .nbcot-line-tree .nbcot-line-config-panel {
+        background: #fff;
+        border-left: 1px solid #ddd;
+        bottom: 0;
+        box-shadow: -4px 0 16px rgba(0, 0, 0, 0.18);
+        display: none;
+        overflow: auto;
+        padding: 20px;
+        position: fixed;
+        right: 0;
+        top: 0;
+        width: 340px;
+        z-index: 1050;
+    }
+    .nbcot-line-tree .nbcot-line-config-panel.is-open {
+        display: block;
+    }
+    .nbcot-line-tree .nbcot-line-config-header {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .nbcot-line-tree .nbcot-line-config-warning {
+        background: #fff4e5;
+        border: 1px solid #f5d2a1;
+        border-radius: 4px;
+        color: #8a4b00;
+        margin-bottom: 16px;
+        padding: 12px;
+    }
+    .nbcot-line-tree .nbcot-line-config-options label {
+        flex: 1;
+        font-weight: 400;
+        margin: 0;
+    }
+    .nbcot-line-tree .nbcot-line-config-row {
+        align-items: center;
+        display: flex;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    .nbcot-line-tree .nbcot-line-config-row .btn {
+        padding: 1px 5px;
+    }
+    .nbcot-line-tree .nbcot-line-config-actions {
+        border-top: 1px solid #eee;
+        margin-top: 18px;
+        padding-top: 12px;
+        text-align: right;
+    }
+    .nbcot-line-tree .nbcot-line-color-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .nbcot-line-tree .nbcot-line-color-picker {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+    }
+    .nbcot-line-tree .nbcot-line-color-picker input[type="color"] {
+        border: 1px solid #bbb;
+        height: 28px;
+        padding: 0;
+        width: 44px;
+    }
+    .nbcot-line-tree .nbcot-line-color-swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .nbcot-line-tree .nbcot-line-color-swatch {
+        border: 1px solid #999;
+        border-radius: 3px;
+        height: 24px;
+        padding: 0;
+        width: 24px;
+    }
+    .nbcot-line-tree .nbcot-line-color-swatch.is-selected {
+        outline: 2px solid #2f80ed;
+        outline-offset: 2px;
+    }
+    .nbcot-line-tree .nbcot-line-freeze-control {
+        align-items: center;
+        display: flex;
+        gap: 6px;
+    }
+    .nbcot-line-tree .nbcot-line-freeze-control select {
+        width: auto;
+    }
+    .nbcot-line-tree th {
+        background: #fff;
+    }
+    .nbcot-line-tree .nbcot-sticky-column {
+        box-shadow: 1px 0 0 #ddd;
+        left: var(--nbcot-sticky-left, 0px);
+        position: sticky;
+    }
+    .nbcot-line-tree tbody .nbcot-sticky-column {
+        z-index: 12;
+    }
+    .nbcot-line-tree .nbcot-line-header-table .nbcot-sticky-column {
+        z-index: 24;
+    }
+    .nbcot-line-tree tr.nbcot-line-tracked > td {
+        background: #eaf4ff;
+    }
+    .nbcot-line-tree tr.nbcot-line-tracked > td:first-child {
+        border-left: 4px solid #2f80ed;
+    }
+</style>
+<div class="nbcot-line-tree" data-line-tree="{{ table_id }}">
+    {% if tracking_form_action %}
+        <form method="post" action="{{ tracking_form_action }}">
+            {% csrf_token %}
+    {% endif %}
+    <div class="nbcot-line-config-panel" data-line-config-panel>
+        <div class="nbcot-line-config-header">
+            <h3 style="margin: 0;">Table Configuration</h3>
+            <button type="button" class="btn btn-link btn-sm" data-line-action="close-column-config" aria-label="Close">×</button>
+        </div>
+        <div class="nbcot-line-config-warning">Column choices may affect loading times.</div>
+        <p class="text-muted">Use the controls below to arrange columns and select which columns to display.</p>
+        <div class="nbcot-line-config-options" data-line-config-options>
+            {% if tracking_mode %}<div class="nbcot-line-config-row" data-column-option="track"><label><input type="checkbox" data-column-choice="track" checked> Track</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>{% endif %}
+            <div class="nbcot-line-config-row" data-column-option="line"><label><input type="checkbox" data-column-choice="line" checked> Line</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="sku"><label><input type="checkbox" data-column-choice="sku" checked> SKU</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="description"><label><input type="checkbox" data-column-choice="description" checked> Description</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="status"><label><input type="checkbox" data-column-choice="status" checked> Status</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="shipment"><label><input type="checkbox" data-column-choice="shipment" checked> Shipment</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            {% if not tracking_mode %}<div class="nbcot-line-config-row" data-column-option="tracked"><label><input type="checkbox" data-column-choice="tracked" checked> Is Tracked</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>{% endif %}
+            <div class="nbcot-line-config-row" data-column-option="ordered"><label><input type="checkbox" data-column-choice="ordered" checked> Qty</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="fulfilled"><label><input type="checkbox" data-column-choice="fulfilled" checked> Fulfilled</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="backordered"><label><input type="checkbox" data-column-choice="backordered" checked> Backorder</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="promised"><label><input type="checkbox" data-column-choice="promised" checked> Promised</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="estimated"><label><input type="checkbox" data-column-choice="estimated" checked> Estimated</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="serial"><label><input type="checkbox" data-column-choice="serial" checked> Serial</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="parent_serial"><label><input type="checkbox" data-column-choice="parent_serial" checked> Parent Serial</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="mac"><label><input type="checkbox" data-column-choice="mac" checked> MAC</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="imei"><label><input type="checkbox" data-column-choice="imei" checked> IMEI</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="instance"><label><input type="checkbox" data-column-choice="instance" checked> Instance</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="license_key"><label><input type="checkbox" data-column-choice="license_key" checked> License Key</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="cloud_id"><label><input type="checkbox" data-column-choice="cloud_id" checked> Cloud ID</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="contract_number"><label><input type="checkbox" data-column-choice="contract_number" checked> Contract</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="carrier"><label><input type="checkbox" data-column-choice="carrier" checked> Carrier</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="tracking"><label><input type="checkbox" data-column-choice="tracking" checked> Tracking Number</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="tracking_url"><label><input type="checkbox" data-column-choice="tracking_url" checked> Carrier URL</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+            <div class="nbcot-line-config-row" data-column-option="proof_of_delivery"><label><input type="checkbox" data-column-choice="proof_of_delivery" checked> Proof Of Delivery URL</label><button type="button" class="btn btn-default btn-xs" data-column-move="up">↑</button><button type="button" class="btn btn-default btn-xs" data-column-move="down">↓</button></div>
+        </div>
+        <div class="nbcot-line-config-actions">
+            <button type="button" class="btn btn-primary btn-sm" data-line-action="save-column-config">Save</button>
+            <button type="button" class="btn btn-default btn-sm" data-line-action="reset-column-config">Reset</button>
+        </div>
+    </div>
+
+    <div class="nbcot-line-sticky-stack" data-line-sticky-stack>
+        <div class="nbcot-line-sticky-controls" data-line-sticky-controls>
+            <div class="nbcot-line-toolbar">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="expand-all">Expand All</button>
+                    <button type="button" class="btn btn-default btn-sm" data-line-action="collapse-all">Collapse All</button>
+                </div>
+                {% if tracking_mode %}
+                    <div class="btn-group" style="margin-left: 8px;">
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="select-visible">Select Visible</button>
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-visible">Clear Visible</button>
+                    </div>
+                {% endif %}
+                {% if tracking_submit_label %}
+                    <button type="submit" class="btn btn-primary btn-sm" style="margin-left: 8px;">{{ tracking_submit_label }}</button>
+                {% endif %}
+                <div class="input-group input-group-sm nbcot-line-filter">
+                    <span class="input-group-addon">Filter</span>
+                    <input type="search" class="form-control" data-line-filter="all" placeholder="All line fields">
+                </div>
+                <button type="button" class="btn btn-default btn-sm" data-line-action="open-column-config" title="Configure columns">
+                    <span class="mdi mdi-cog" aria-hidden="true"></span>
+                    <span class="sr-only">Configure columns</span>
+                </button>
+            </div>
+            <div class="nbcot-line-context-toolbar" data-line-color-toolbar>
+                <div class="nbcot-line-color-picker">
+                    <label for="{{ table_id }}-tracked-color" style="margin: 0;">Line color</label>
+                    <input type="color" id="{{ table_id }}-tracked-color" data-line-color-picker value="#eaf4ff">
+                </div>
+                <div class="nbcot-line-color-swatches" aria-label="Preset line colors">
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#eaf4ff" style="background: #eaf4ff;" title="Blue"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fff4cc" style="background: #fff4cc;" title="Yellow"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#e6f4ea" style="background: #e6f4ea;" title="Green"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#fce8e6" style="background: #fce8e6;" title="Red"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#f3e8ff" style="background: #f3e8ff;" title="Purple"></button>
+                    <button type="button" class="nbcot-line-color-swatch" data-line-color-swatch="#ffffff" style="background: #ffffff;" title="White"></button>
+                </div>
+                {% if tracking_mode %}
+                    <div class="nbcot-line-color-actions">
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="apply-color-selected">Apply To Selected</button>
+                        <button type="button" class="btn btn-default btn-sm" data-line-action="clear-color-selected">Clear Selected</button>
+                    </div>
+                {% endif %}
+                <div class="nbcot-line-freeze-control">
+                    <label for="{{ table_id }}-freeze-count" style="margin: 0;">Frozen columns</label>
+                    <select id="{{ table_id }}-freeze-count" class="form-control input-sm" data-line-freeze-count>
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3" selected>3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="nbcot-line-header-scroll" data-line-header-scroll>
+            <table class="table table-condensed nbcot-line-header-table">
+                <thead>
+                <tr class="nbcot-line-heading-row">
+                    {% if tracking_mode %}
+                        <th data-column-key="track" style="width: 42px;">Track</th>
+                    {% endif %}
+                    <th data-column-key="line" style="min-width: 130px;">
+                        <button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="line" data-line-sort-type="line">Line</button>
+                    </th>
+                    <th data-column-key="sku"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="sku">SKU</button></th>
+                    <th data-column-key="description"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="description">Description</button></th>
+                    <th data-column-key="status"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="status">Status</button></th>
+                    <th data-column-key="shipment"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="shipment">Shipment</button></th>
+                    {% if not tracking_mode %}
+                        <th data-column-key="tracked"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracked">Is Tracked</button></th>
+                    {% endif %}
+                    <th data-column-key="ordered" class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="ordered" data-line-sort-type="number">Qty</button></th>
+                    <th data-column-key="fulfilled" class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="fulfilled" data-line-sort-type="number">Fulfilled</button></th>
+                    <th data-column-key="backordered" class="text-right"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="backordered" data-line-sort-type="number">Backorder</button></th>
+                    <th data-column-key="promised"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="promised">Promised</button></th>
+                    <th data-column-key="estimated"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="estimated">Estimated</button></th>
+                    <th data-column-key="serial"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="serial">Serial</button></th>
+                    <th data-column-key="parent_serial"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="parent-serial">Parent Serial</button></th>
+                    <th data-column-key="mac"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="mac">MAC</button></th>
+                    <th data-column-key="imei"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="imei">IMEI</button></th>
+                    <th data-column-key="instance"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="instance">Instance</button></th>
+                    <th data-column-key="license_key"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="license-key">License Key</button></th>
+                    <th data-column-key="cloud_id"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="cloud-id">Cloud ID</button></th>
+                    <th data-column-key="contract_number"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="contract-number">Contract</button></th>
+                    <th data-column-key="carrier"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="carrier">Carrier</button></th>
+                    <th data-column-key="tracking"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracking">Tracking</button></th>
+                    <th data-column-key="tracking_url"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="tracking-url">Carrier URL</button></th>
+                    <th data-column-key="proof_of_delivery"><button type="button" class="btn btn-link btn-xs nbcot-sort" data-line-sort="proof-of-delivery">Proof Of Delivery</button></th>
+                </tr>
+                <tr class="nbcot-line-filter-row">
+                    {% if tracking_mode %}
+                        <th data-column-key="track"></th>
+                    {% endif %}
+                    <th data-column-key="line"><input type="search" class="form-control input-sm" data-line-filter="line"></th>
+                    <th data-column-key="sku"><input type="search" class="form-control input-sm" data-line-filter="sku"></th>
+                    <th data-column-key="description"><input type="search" class="form-control input-sm" data-line-filter="description"></th>
+                    <th data-column-key="status"><input type="search" class="form-control input-sm" data-line-filter="status"></th>
+                    <th data-column-key="shipment"><input type="search" class="form-control input-sm" data-line-filter="shipment"></th>
+                    {% if not tracking_mode %}
+                        <th data-column-key="tracked"><input type="search" class="form-control input-sm" data-line-filter="tracked"></th>
+                    {% endif %}
+                    <th data-column-key="ordered"><input type="search" class="form-control input-sm" data-line-filter="ordered"></th>
+                    <th data-column-key="fulfilled"><input type="search" class="form-control input-sm" data-line-filter="fulfilled"></th>
+                    <th data-column-key="backordered"><input type="search" class="form-control input-sm" data-line-filter="backordered"></th>
+                    <th data-column-key="promised"><input type="search" class="form-control input-sm" data-line-filter="promised"></th>
+                    <th data-column-key="estimated"><input type="search" class="form-control input-sm" data-line-filter="estimated"></th>
+                    <th data-column-key="serial"><input type="search" class="form-control input-sm" data-line-filter="serial"></th>
+                    <th data-column-key="parent_serial"><input type="search" class="form-control input-sm" data-line-filter="parent-serial"></th>
+                    <th data-column-key="mac"><input type="search" class="form-control input-sm" data-line-filter="mac"></th>
+                    <th data-column-key="imei"><input type="search" class="form-control input-sm" data-line-filter="imei"></th>
+                    <th data-column-key="instance"><input type="search" class="form-control input-sm" data-line-filter="instance"></th>
+                    <th data-column-key="license_key"><input type="search" class="form-control input-sm" data-line-filter="license-key"></th>
+                    <th data-column-key="cloud_id"><input type="search" class="form-control input-sm" data-line-filter="cloud-id"></th>
+                    <th data-column-key="contract_number"><input type="search" class="form-control input-sm" data-line-filter="contract-number"></th>
+                    <th data-column-key="carrier"><input type="search" class="form-control input-sm" data-line-filter="carrier"></th>
+                    <th data-column-key="tracking"><input type="search" class="form-control input-sm" data-line-filter="tracking"></th>
+                    <th data-column-key="tracking_url"><input type="search" class="form-control input-sm" data-line-filter="tracking-url"></th>
+                    <th data-column-key="proof_of_delivery"><input type="search" class="form-control input-sm" data-line-filter="proof-of-delivery"></th>
+                </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+    <div class="nbcot-line-sticky-spacer" data-line-sticky-spacer></div>
+
+    <div class="table-responsive nbcot-line-body-scroll" data-line-body-scroll>
+        <table class="table table-hover table-condensed nbcot-line-body-table" id="{{ table_id }}">
+            <tbody>
+                {% for row in line_rows %}
+                    <tr
+                        class="nbcot-line-row{% if row.line.is_tracked %} nbcot-line-tracked{% endif %}"
+                        data-line-row="{{ row.row_id }}"
+                        data-parent-id="{{ row.parent_id }}"
+                        data-ancestor-ids="{{ row.ancestor_ids|join:' ' }}"
+                        data-has-children="{% if row.has_children %}true{% else %}false{% endif %}"
+                        data-line="{{ row.line.line_number|default:row.line.line_key }}"
+                        data-sku="{{ row.line.sku|default:'' }}"
+                        data-description="{{ row.line.description|default:'' }}"
+                        data-status="{{ row.line.status|default:'' }}"
+                        data-shipment="{{ row.line.shipment_status|default:'' }}"
+                        data-tracked="{% if row.line.is_tracked %}tracked{% else %}not tracked{% endif %}"
+                        data-ordered="{{ row.line.quantity_ordered|default:'0' }}"
+                        data-fulfilled="{{ row.line.quantity_fulfilled|default:'0' }}"
+                        data-backordered="{{ row.line.quantity_backordered|default:'0' }}"
+                        data-promised="{{ row.line.promised_delivery_date|default:'' }}"
+                        data-estimated="{{ row.line.estimated_delivery_date|default:'' }}"
+                        data-serial="{{ row.line.serial_numbers_export|default:'' }}"
+                        data-parent-serial="{{ row.line.parent_serial_numbers_export|default:'' }}"
+                        data-mac="{{ row.line.mac_addresses_export|default:'' }}"
+                        data-imei="{{ row.line.imei_number|default:'' }}"
+                        data-instance="{{ row.line.instance_number|default:'' }}"
+                        data-license-key="{{ row.line.license_key|default:'' }}"
+                        data-cloud-id="{{ row.line.cloud_id|default:'' }}"
+                        data-contract-number="{{ row.line.contract_number|default:'' }}"
+                        data-ship-set="{{ row.line.ship_set|default:'' }}"
+                        data-carrier="{{ row.line.carrier|default:'' }}"
+                        data-tracking="{{ row.line.tracking_number|default:'' }}"
+                        data-tracking-url="{{ row.line.tracking_url|default:'' }}"
+                        data-proof-of-delivery="{{ row.line.proof_of_delivery_url|default:'' }}"
+                        data-actual-delivery="{{ row.line.actual_delivery_date|default:'' }}"
+                        data-estimated-ship="{{ row.line.estimated_ship_date|default:'' }}"
+                    >
+                        {% if tracking_mode %}
+                            <td data-column-key="track">
+                                <input type="checkbox" name="line_keys" value="{{ row.line.line_key }}"{% if row.line.is_tracked %} checked{% endif %}>
+                            </td>
+                        {% endif %}
+                        <td data-column-key="line" style="padding-left: {{ row.indent_px }}px;">
+                            {% if row.has_children %}
+                                <button type="button" class="btn btn-xs btn-default" data-line-action="toggle" data-target-row="{{ row.row_id }}" aria-expanded="true">-</button>
+                            {% else %}
+                                <span style="display: inline-block; width: 28px;"></span>
+                            {% endif %}
+                            {% if row.has_children %}
+                                <strong>{{ row.line.line_number|default:row.line.line_key }}</strong>
+                            {% else %}
+                                {{ row.line.line_number|default:row.line.line_key }}
+                            {% endif %}
+                        </td>
+                        <td data-column-key="sku">{{ row.line.sku|default:"-" }}</td>
+                        <td data-column-key="description">{{ row.line.description|default:"-" }}</td>
+                        <td data-column-key="status">{{ row.line.status|default:"-" }}</td>
+                        <td data-column-key="shipment">{{ row.line.shipment_status|default:"-" }}</td>
+                        {% if not tracking_mode %}
+                            <td data-column-key="tracked">{% if row.line.is_tracked %}<span class="text-success">Yes</span>{% else %}<span class="text-danger">No</span>{% endif %}</td>
+                        {% endif %}
+                        <td data-column-key="ordered" class="text-right">{{ row.line.quantity_ordered }}</td>
+                        <td data-column-key="fulfilled" class="text-right">{{ row.line.quantity_fulfilled }}</td>
+                        <td data-column-key="backordered" class="text-right">{{ row.line.quantity_backordered }}</td>
+                        <td data-column-key="promised">{{ row.line.promised_delivery_date|default:"-" }}</td>
+                        <td data-column-key="estimated">{{ row.line.estimated_delivery_date|default:"-" }}</td>
+                        <td data-column-key="serial"><span class="nbcot-line-multivalue">{{ row.line.serial_numbers_display|default:"-" }}</span></td>
+                        <td data-column-key="parent_serial"><span class="nbcot-line-multivalue">{{ row.line.parent_serial_numbers_display|default:"-" }}</span></td>
+                        <td data-column-key="mac"><span class="nbcot-line-multivalue">{{ row.line.mac_addresses_display|default:"-" }}</span></td>
+                        <td data-column-key="imei">{{ row.line.imei_number|default:"-" }}</td>
+                        <td data-column-key="instance">{{ row.line.instance_number|default:"-" }}</td>
+                        <td data-column-key="license_key">{{ row.line.license_key|default:"-" }}</td>
+                        <td data-column-key="cloud_id">{{ row.line.cloud_id|default:"-" }}</td>
+                        <td data-column-key="contract_number">{{ row.line.contract_number|default:"-" }}</td>
+                        <td data-column-key="carrier">{{ row.line.carrier|default:"-" }}</td>
+                        <td data-column-key="tracking">{{ row.line.tracking_number|default:"-" }}</td>
+                        <td data-column-key="tracking_url">
+                            {% if row.line.tracking_url %}
+                                <a href="{{ row.line.tracking_url }}" target="_blank" rel="noopener noreferrer">{{ row.line.tracking_url }}</a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td data-column-key="proof_of_delivery">
+                            {% if row.line.proof_of_delivery_url %}
+                                <a href="{{ row.line.proof_of_delivery_url }}" target="_blank" rel="noopener noreferrer">{{ row.line.proof_of_delivery_url }}</a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="26" class="text-muted">{{ empty_message|default:"No line items were returned." }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if tracking_form_action %}
+        </form>
+    {% endif %}
+</div>
+
+<script>
+    (function () {
+        function parseLine(value) {
+            return String(value || "").split(".").map(function (part) {
+                var number = Number(part);
+                return Number.isNaN(number) ? part.toLowerCase() : number;
+            });
+        }
+
+        function compareLine(a, b) {
+            var left = parseLine(a);
+            var right = parseLine(b);
+            var length = Math.max(left.length, right.length);
+            for (var index = 0; index < length; index += 1) {
+                if (left[index] === undefined) {
+                    return -1;
+                }
+                if (right[index] === undefined) {
+                    return 1;
+                }
+                if (left[index] === right[index]) {
+                    continue;
+                }
+                if (typeof left[index] === typeof right[index]) {
+                    return left[index] < right[index] ? -1 : 1;
+                }
+                return typeof left[index] === "number" ? -1 : 1;
+            }
+            return 0;
+        }
+
+        document.querySelectorAll("[data-line-tree]").forEach(function (tree) {
+            var tbody = tree.querySelector("tbody");
+            var rows = Array.from(tree.querySelectorAll("[data-line-row]"));
+            var collapsed = new Set();
+            var hiddenColumns = new Set();
+            var storageKey = "nbcot-line-columns:" + tree.getAttribute("data-line-tree");
+            var defaultTrackedColor = "#eaf4ff";
+            var trackedColor = defaultTrackedColor;
+            var rowColors = {};
+            var defaultFreezeCount = 3;
+            var freezeCount = defaultFreezeCount;
+            var columnOrder = [];
+            var sortState = {key: "line", type: "line", direction: "asc"};
+            var headerScroll = tree.querySelector("[data-line-header-scroll]");
+            var bodyScroll = tree.querySelector("[data-line-body-scroll]");
+            var headerTable = tree.querySelector(".nbcot-line-header-table");
+            var bodyTable = tree.querySelector(".nbcot-line-body-table");
+            var stickyStack = tree.querySelector("[data-line-sticky-stack]");
+            var stickySpacer = tree.querySelector("[data-line-sticky-spacer]");
+            var syncingHorizontalScroll = false;
+
+            function childrenOf(parentId) {
+                return rows.filter(function (row) {
+                    return row.getAttribute("data-parent-id") === parentId;
+                });
+            }
+
+            function compareRows(left, right) {
+                var leftValue = left.getAttribute("data-" + sortState.key) || "";
+                var rightValue = right.getAttribute("data-" + sortState.key) || "";
+                var result;
+                if (sortState.type === "line") {
+                    result = compareLine(leftValue, rightValue);
+                } else if (sortState.type === "number") {
+                    result = (Number(leftValue) || 0) - (Number(rightValue) || 0);
+                } else {
+                    result = leftValue.toLowerCase().localeCompare(rightValue.toLowerCase());
+                }
+                return sortState.direction === "asc" ? result : -result;
+            }
+
+            function appendBranch(parentId) {
+                childrenOf(parentId).sort(compareRows).forEach(function (row) {
+                    tbody.appendChild(row);
+                    appendBranch(row.getAttribute("data-line-row"));
+                });
+            }
+
+            function rowMatches(row, filters) {
+                return filters.every(function (filter) {
+                    var haystack;
+                    if (filter.key === "all") {
+                        haystack = Object.keys(row.dataset).map(function (key) {
+                            return row.dataset[key];
+                        }).join(" ");
+                    } else {
+                        haystack = row.getAttribute("data-" + filter.key) || "";
+                    }
+                    return haystack.toLowerCase().indexOf(filter.value) !== -1;
+                });
+            }
+
+            function visibleByFilter(filters) {
+                var visible = new Set();
+                rows.forEach(function (row) {
+                    if (rowMatches(row, filters)) {
+                        visible.add(row.getAttribute("data-line-row"));
+                        (row.getAttribute("data-ancestor-ids") || "").split(" ").forEach(function (ancestorId) {
+                            if (ancestorId) {
+                                visible.add(ancestorId);
+                            }
+                        });
+                    }
+                });
+                return visible;
+            }
+
+            function applyVisibility() {
+                var filters = Array.from(tree.querySelectorAll("[data-line-filter]")).map(function (input) {
+                    return {
+                        key: input.getAttribute("data-line-filter"),
+                        value: input.value.trim().toLowerCase(),
+                    };
+                }).filter(function (filter) {
+                    return filter.value;
+                });
+                var visibleIds = filters.length ? visibleByFilter(filters) : new Set(rows.map(function (row) {
+                    return row.getAttribute("data-line-row");
+                }));
+
+                rows.forEach(function (row) {
+                    var rowId = row.getAttribute("data-line-row");
+                    var hiddenByAncestor = filters.length ? false : (row.getAttribute("data-ancestor-ids") || "").split(" ").some(function (ancestorId) {
+                        return collapsed.has(ancestorId);
+                    });
+                    row.style.display = visibleIds.has(rowId) && !hiddenByAncestor ? "" : "none";
+                });
+                tree.querySelectorAll("[data-target-row]").forEach(function (button) {
+                    var expanded = !collapsed.has(button.getAttribute("data-target-row"));
+                    button.textContent = expanded ? "-" : "+";
+                    button.setAttribute("aria-expanded", expanded ? "true" : "false");
+                });
+                syncHeaderWidths();
+                applyFrozenColumns();
+            }
+
+            function sortAndRender() {
+                appendBranch("");
+                applyVisibility();
+            }
+
+            function defaultColumnOrder() {
+                return Array.from(tree.querySelectorAll("[data-column-option]")).map(function (element) {
+                    return element.getAttribute("data-column-option");
+                });
+            }
+
+            function normalizeColumnOrder(order) {
+                var known = defaultColumnOrder();
+                var seen = new Set();
+                var normalized = [];
+                (order || []).forEach(function (key) {
+                    if (known.indexOf(key) !== -1 && !seen.has(key)) {
+                        normalized.push(key);
+                        seen.add(key);
+                    }
+                });
+                known.forEach(function (key) {
+                    if (!seen.has(key)) {
+                        normalized.push(key);
+                    }
+                });
+                return normalized;
+            }
+
+            function applyColumnOrder() {
+                var options = tree.querySelector("[data-line-config-options]");
+                columnOrder = normalizeColumnOrder(columnOrder);
+                columnOrder.forEach(function (key) {
+                    var option = options.querySelector("[data-column-option='" + key + "']");
+                    if (option) {
+                        options.appendChild(option);
+                    }
+                });
+                tree.querySelectorAll(".nbcot-line-heading-row, .nbcot-line-filter-row, tbody tr").forEach(function (row) {
+                    columnOrder.forEach(function (key) {
+                        var cell = Array.from(row.children).find(function (child) {
+                            return child.getAttribute("data-column-key") === key;
+                        });
+                        if (cell) {
+                            row.appendChild(cell);
+                        }
+                    });
+                });
+                syncHeaderWidths();
+                applyFrozenColumns();
+            }
+
+            function applyRowColors() {
+                rows.forEach(function (row) {
+                    var rowId = row.getAttribute("data-line-row");
+                    var color = rowColors[rowId] || (row.classList.contains("nbcot-line-tracked") ? trackedColor : "");
+                    Array.from(row.children).forEach(function (cell) {
+                        cell.style.backgroundColor = color || "";
+                    });
+                });
+                tree.querySelectorAll("[data-line-color-picker]").forEach(function (input) {
+                    input.value = trackedColor;
+                });
+                tree.querySelectorAll("[data-line-color-swatch]").forEach(function (button) {
+                    button.classList.toggle("is-selected", button.getAttribute("data-line-color-swatch") === trackedColor);
+                });
+            }
+
+            function visibleColumnKeys() {
+                return columnOrder.filter(function (key) {
+                    return !hiddenColumns.has(key);
+                });
+            }
+
+            function updateFreezeControl() {
+                var control = tree.querySelector("[data-line-freeze-count]");
+                if (control) {
+                    control.value = String(freezeCount);
+                }
+            }
+
+            function clearFrozenColumns() {
+                tree.querySelectorAll(".nbcot-sticky-column").forEach(function (cell) {
+                    cell.classList.remove("nbcot-sticky-column");
+                    cell.style.removeProperty("--nbcot-sticky-left");
+                });
+            }
+
+            function clearHeaderWidths() {
+                tree.querySelectorAll(".nbcot-line-heading-row [data-column-key], .nbcot-line-filter-row [data-column-key]").forEach(function (cell) {
+                    cell.style.removeProperty("width");
+                    cell.style.removeProperty("min-width");
+                    cell.style.removeProperty("max-width");
+                });
+            }
+
+            function columnMinWidth(key) {
+                var widths = {
+                    "track": 52,
+                    "line": 140,
+                    "sku": 190,
+                    "description": 420,
+                    "status": 150,
+                    "shipment": 140,
+                    "tracked": 110,
+                    "ordered": 80,
+                    "fulfilled": 90,
+                    "backordered": 110,
+                    "promised": 120,
+                    "estimated": 120,
+                    "serial": 170,
+                    "parent_serial": 160,
+                    "mac": 140,
+                    "imei": 140,
+                    "instance": 220,
+                    "license_key": 180,
+                    "cloud_id": 160,
+                    "contract_number": 160,
+                    "carrier": 190,
+                    "tracking": 220,
+                    "tracking_url": 260,
+                    "proof_of_delivery": 260,
+                };
+                return widths[key] || 120;
+            }
+
+            function firstVisibleBodyRow() {
+                return rows.find(function (row) {
+                    return row.style.display !== "none";
+                }) || rows[0] || null;
+            }
+
+            function syncHeaderWidths() {
+                var sourceRow = firstVisibleBodyRow();
+                if (!headerTable || !bodyTable || !sourceRow) {
+                    return;
+                }
+                clearHeaderWidths();
+                headerTable.style.width = "";
+                var explicitWidth = 0;
+                visibleColumnKeys().forEach(function (key) {
+                    var bodyCell = sourceRow.querySelector("[data-column-key='" + key + "']");
+                    var width = bodyCell ? bodyCell.getBoundingClientRect().width : 0;
+                    var minWidth = Math.max(width, columnMinWidth(key));
+                    explicitWidth += minWidth;
+                    tree.querySelectorAll(".nbcot-line-heading-row [data-column-key='" + key + "'], .nbcot-line-filter-row [data-column-key='" + key + "']").forEach(function (cell) {
+                        cell.style.width = minWidth + "px";
+                        cell.style.minWidth = minWidth + "px";
+                        cell.style.maxWidth = minWidth + "px";
+                    });
+                    tree.querySelectorAll("tbody [data-column-key='" + key + "']").forEach(function (cell) {
+                        cell.style.minWidth = minWidth + "px";
+                    });
+                });
+                if (explicitWidth) {
+                    bodyTable.style.minWidth = explicitWidth + "px";
+                    headerTable.style.width = explicitWidth + "px";
+                }
+                updateFixedStickyStack();
+            }
+
+            function syncHorizontalScroll() {
+                if (!headerScroll || !bodyScroll) {
+                    return;
+                }
+                bodyScroll.addEventListener("scroll", function () {
+                    if (syncingHorizontalScroll) {
+                        return;
+                    }
+                    syncingHorizontalScroll = true;
+                    headerScroll.scrollLeft = bodyScroll.scrollLeft;
+                    syncingHorizontalScroll = false;
+                });
+                headerScroll.addEventListener("scroll", function () {
+                    if (syncingHorizontalScroll) {
+                        return;
+                    }
+                    syncingHorizontalScroll = true;
+                    bodyScroll.scrollLeft = headerScroll.scrollLeft;
+                    syncingHorizontalScroll = false;
+                });
+            }
+
+            function stickyStackOriginalTop() {
+                if (!stickyStack) {
+                    return 0;
+                }
+                if (stickyStack.classList.contains("is-fixed") && stickySpacer) {
+                    return stickySpacer.getBoundingClientRect().top + window.pageYOffset;
+                }
+                return stickyStack.getBoundingClientRect().top + window.pageYOffset;
+            }
+
+            function updateFixedStickyStack() {
+                if (!stickyStack || !stickySpacer || !bodyScroll) {
+                    return;
+                }
+                var stackHeight = stickyStack.getBoundingClientRect().height;
+                var originalTop = stickyStackOriginalTop();
+                var treeRect = tree.getBoundingClientRect();
+                var treeBottom = treeRect.bottom + window.pageYOffset;
+                var scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+                var shouldFix = scrollTop > originalTop && scrollTop < (treeBottom - stackHeight);
+
+                tree.style.setProperty("--nbcot-line-sticky-height", stackHeight + "px");
+                if (shouldFix) {
+                    stickyStack.classList.add("is-fixed");
+                    stickySpacer.classList.add("is-active");
+                    tree.style.setProperty("--nbcot-line-fixed-left", treeRect.left + "px");
+                    tree.style.setProperty("--nbcot-line-fixed-width", treeRect.width + "px");
+                    tree.style.setProperty("--nbcot-line-fixed-top", "0px");
+                } else {
+                    stickyStack.classList.remove("is-fixed");
+                    stickySpacer.classList.remove("is-active");
+                    tree.style.removeProperty("--nbcot-line-fixed-left");
+                    tree.style.removeProperty("--nbcot-line-fixed-width");
+                    tree.style.removeProperty("--nbcot-line-fixed-top");
+                }
+            }
+
+            function applyFrozenColumns() {
+                var leftOffset = 0;
+                var frozenKeys = visibleColumnKeys().slice(0, freezeCount);
+                clearFrozenColumns();
+                frozenKeys.forEach(function (key) {
+                    var headerCell = tree.querySelector(".nbcot-line-heading-row [data-column-key='" + key + "']");
+                    tree.querySelectorAll("[data-column-key='" + key + "']").forEach(function (cell) {
+                        cell.classList.add("nbcot-sticky-column");
+                        cell.style.setProperty("--nbcot-sticky-left", leftOffset + "px");
+                    });
+                    leftOffset += headerCell ? headerCell.getBoundingClientRect().width : 0;
+                });
+                updateFreezeControl();
+            }
+
+            function selectedRows() {
+                return rows.filter(function (row) {
+                    var checkbox = row.querySelector("input[name='line_keys']");
+                    return checkbox && checkbox.checked;
+                });
+            }
+
+            function applyColumnVisibility() {
+                tree.querySelectorAll("[data-column-key]").forEach(function (element) {
+                    var key = element.getAttribute("data-column-key");
+                    element.style.display = hiddenColumns.has(key) ? "none" : "";
+                });
+                tree.querySelectorAll("[data-column-choice]").forEach(function (input) {
+                    input.checked = !hiddenColumns.has(input.getAttribute("data-column-choice"));
+                });
+                syncHeaderWidths();
+                applyFrozenColumns();
+                applyRowColors();
+            }
+
+            function saveColumnConfig() {
+                window.localStorage.setItem(storageKey, JSON.stringify({
+                    hidden: Array.from(hiddenColumns),
+                    order: columnOrder,
+                    trackedColor: trackedColor,
+                    rowColors: rowColors,
+                    freezeCount: freezeCount,
+                }));
+            }
+
+            function loadColumnConfig() {
+                try {
+                    var config = JSON.parse(window.localStorage.getItem(storageKey) || "[]");
+                    if (Array.isArray(config)) {
+                        config.forEach(function (key) {
+                            hiddenColumns.add(key);
+                        });
+                    } else {
+                        (config.hidden || []).forEach(function (key) {
+                            hiddenColumns.add(key);
+                        });
+                        columnOrder = normalizeColumnOrder(config.order || []);
+                        trackedColor = config.trackedColor || defaultTrackedColor;
+                        rowColors = config.rowColors || {};
+                        freezeCount = Number(config.freezeCount);
+                        if (!Number.isFinite(freezeCount)) {
+                            freezeCount = defaultFreezeCount;
+                        }
+                    }
+                } catch (error) {
+                    hiddenColumns.clear();
+                    columnOrder = [];
+                    trackedColor = defaultTrackedColor;
+                    rowColors = {};
+                    freezeCount = defaultFreezeCount;
+                }
+                applyColumnOrder();
+                applyColumnVisibility();
+            }
+
+            tree.querySelectorAll("[data-line-action='toggle']").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    var rowId = button.getAttribute("data-target-row");
+                    if (collapsed.has(rowId)) {
+                        collapsed.delete(rowId);
+                    } else {
+                        collapsed.add(rowId);
+                    }
+                    applyVisibility();
+                });
+            });
+            tree.querySelector("[data-line-action='expand-all']").addEventListener("click", function () {
+                collapsed.clear();
+                applyVisibility();
+            });
+            tree.querySelector("[data-line-action='collapse-all']").addEventListener("click", function () {
+                rows.filter(function (row) {
+                    return row.getAttribute("data-has-children") === "true";
+                }).forEach(function (row) {
+                    collapsed.add(row.getAttribute("data-line-row"));
+                });
+                applyVisibility();
+            });
+            var selectVisibleButton = tree.querySelector("[data-line-action='select-visible']");
+            if (selectVisibleButton) {
+                selectVisibleButton.addEventListener("click", function () {
+                    rows.forEach(function (row) {
+                        var checkbox = row.querySelector("input[name='line_keys']");
+                        if (checkbox && row.style.display !== "none") {
+                            checkbox.checked = true;
+                        }
+                    });
+                });
+            }
+            var clearVisibleButton = tree.querySelector("[data-line-action='clear-visible']");
+            if (clearVisibleButton) {
+                clearVisibleButton.addEventListener("click", function () {
+                    rows.forEach(function (row) {
+                        var checkbox = row.querySelector("input[name='line_keys']");
+                        if (checkbox && row.style.display !== "none") {
+                            checkbox.checked = false;
+                        }
+                    });
+                });
+            }
+            tree.querySelectorAll("[data-line-filter]").forEach(function (input) {
+                input.addEventListener("input", applyVisibility);
+            });
+            tree.querySelectorAll("[data-line-sort]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    var key = button.getAttribute("data-line-sort");
+                    if (sortState.key === key) {
+                        sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+                    } else {
+                        sortState.key = key;
+                        sortState.direction = "asc";
+                    }
+                    sortState.type = button.getAttribute("data-line-sort-type") || "text";
+                    sortAndRender();
+                });
+            });
+            tree.querySelectorAll("[data-column-choice]").forEach(function (input) {
+                input.addEventListener("change", function () {
+                    var key = input.getAttribute("data-column-choice");
+                    if (hiddenColumns.has(key)) {
+                        hiddenColumns.delete(key);
+                    } else {
+                        hiddenColumns.add(key);
+                    }
+                    applyColumnVisibility();
+                });
+            });
+            tree.querySelectorAll("[data-column-move]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    var row = button.closest("[data-column-option]");
+                    var key = row.getAttribute("data-column-option");
+                    var index = columnOrder.indexOf(key);
+                    var direction = button.getAttribute("data-column-move");
+                    var targetIndex = direction === "up" ? index - 1 : index + 1;
+                    if (index === -1 || targetIndex < 0 || targetIndex >= columnOrder.length) {
+                        return;
+                    }
+                    columnOrder[index] = columnOrder[targetIndex];
+                    columnOrder[targetIndex] = key;
+                    applyColumnOrder();
+                    applyColumnVisibility();
+                });
+            });
+            tree.querySelectorAll("[data-line-color-picker]").forEach(function (input) {
+                input.addEventListener("input", function () {
+                    trackedColor = input.value || defaultTrackedColor;
+                    applyRowColors();
+                    saveColumnConfig();
+                });
+            });
+            tree.querySelectorAll("[data-line-color-swatch]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    trackedColor = button.getAttribute("data-line-color-swatch") || defaultTrackedColor;
+                    applyRowColors();
+                    saveColumnConfig();
+                });
+            });
+            var freezeControl = tree.querySelector("[data-line-freeze-count]");
+            if (freezeControl) {
+                freezeControl.addEventListener("change", function () {
+                    freezeCount = Number(freezeControl.value);
+                    if (!Number.isFinite(freezeCount)) {
+                        freezeCount = defaultFreezeCount;
+                    }
+                    applyFrozenColumns();
+                    saveColumnConfig();
+                });
+            }
+            var applyColorSelectedButton = tree.querySelector("[data-line-action='apply-color-selected']");
+            if (applyColorSelectedButton) {
+                applyColorSelectedButton.addEventListener("click", function () {
+                    selectedRows().forEach(function (row) {
+                        rowColors[row.getAttribute("data-line-row")] = trackedColor;
+                    });
+                    applyRowColors();
+                    saveColumnConfig();
+                });
+            }
+            var clearColorSelectedButton = tree.querySelector("[data-line-action='clear-color-selected']");
+            if (clearColorSelectedButton) {
+                clearColorSelectedButton.addEventListener("click", function () {
+                    selectedRows().forEach(function (row) {
+                        delete rowColors[row.getAttribute("data-line-row")];
+                    });
+                    applyRowColors();
+                    saveColumnConfig();
+                });
+            }
+            var panel = tree.querySelector("[data-line-config-panel]");
+            tree.querySelector("[data-line-action='open-column-config']").addEventListener("click", function () {
+                panel.classList.add("is-open");
+            });
+            tree.querySelector("[data-line-action='close-column-config']").addEventListener("click", function () {
+                panel.classList.remove("is-open");
+            });
+            tree.querySelector("[data-line-action='save-column-config']").addEventListener("click", function () {
+                saveColumnConfig();
+                panel.classList.remove("is-open");
+            });
+            tree.querySelector("[data-line-action='reset-column-config']").addEventListener("click", function () {
+                hiddenColumns.clear();
+                columnOrder = defaultColumnOrder();
+                trackedColor = defaultTrackedColor;
+                rowColors = {};
+                freezeCount = defaultFreezeCount;
+                window.localStorage.removeItem(storageKey);
+                applyColumnOrder();
+                applyColumnVisibility();
+            });
+            syncHorizontalScroll();
+            columnOrder = defaultColumnOrder();
+            loadColumnConfig();
+            sortAndRender();
+            updateFixedStickyStack();
+            window.addEventListener("scroll", updateFixedStickyStack, {passive: true});
+            window.addEventListener("resize", function () {
+                syncHeaderWidths();
+                applyFrozenColumns();
+                updateFixedStickyStack();
+            });
+        });
+    }());
+</script>
+{% endwith %}
