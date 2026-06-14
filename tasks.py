@@ -435,7 +435,7 @@ def _remote_restart_vpn_control(node: str, compose_dir: str = "/opt/nautobot/env
     )
 
 
-def _remote_wait_healthy(node: str, container_name: str, timeout_seconds: int = 180):
+def _remote_wait_healthy(node: str, container_name: str, timeout_seconds: int = 600):
     """Wait for a remote container to report healthy, or just running if no healthcheck exists."""
     print(f"  [{node}] Waiting for {container_name} to become healthy...")
     script = f"""
