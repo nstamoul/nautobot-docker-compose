@@ -474,6 +474,24 @@ while True:
     _ssh(node, f"python3 - <<'PY'\n{script}PY")
 
 
+def _refresh_static(context):
+    """Refresh mounted Nautobot static files from the running image."""
+    print("\nRefreshing Nautobot static assets...")
+    docker_compose(
+        context,
+        "exec -T -u nautobot nautobot nautobot-server collectstatic --clear --noinput --verbosity 0",
+    )
+
+
+def _remote_refresh_static(node: str):
+    """Refresh mounted Nautobot static files on a remote node from the running image."""
+    print(f"  [{node}] Refreshing Nautobot static assets...")
+    _ssh(
+        node,
+        "docker exec -u nautobot nautobot nautobot-server collectstatic --clear --noinput --verbosity 0",
+    )
+
+
 # ------------------------------------------------------------------------------
 # PROMOTE
 # ------------------------------------------------------------------------------
@@ -507,6 +525,7 @@ def promote(context, tag, components="all", yes=False):
     if "nautobot" in selected:
         print("\nRestarting app stack...")
         docker_compose(context, "up -d")
+        _refresh_static(context)
 
     if "vpn-control" in selected:
         print("\nRestarting vpn-control-api...")
@@ -566,6 +585,7 @@ def promote_nodes(context, tag, components="all", yes=False):
             _remote_pull_app(node)
             _remote_restart_app(node)
             _remote_wait_healthy(node, "nautobot")
+            _remote_refresh_static(node)
         if "vpn-control" in selected:
             _remote_pull_vpn_control(node)
             _remote_restart_vpn_control(node)
