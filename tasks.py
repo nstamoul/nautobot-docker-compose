@@ -328,6 +328,12 @@ def _remote_restart_app(node: str, compose_dir: str = "/opt/nautobot/environment
     )
 
 
+def _remote_collect_static(node: str):
+    """Refresh the persistent static volume using the deployed app and Vault entrypoint."""
+    print(f"  [{node}] Collecting application static files...")
+    _ssh(node, "docker exec nautobot /usr/local/bin/shms-nautobot-entrypoint.sh nautobot-server collectstatic --noinput")
+
+
 def _remote_restart_vpn_control(node: str, compose_dir: str = "/opt/nautobot/environments"):
     """Restart vpn-control-api on a remote node."""
     print(f"  [{node}] Restarting vpn-control-api...")
@@ -469,6 +475,7 @@ def promote_nodes(context, tag, components="all", yes=False):
             _remote_pull_app(node)
             _remote_restart_app(node)
             _remote_wait_healthy(node, "nautobot")
+            _remote_collect_static(node)
         if "vpn-control" in selected:
             _remote_pull_vpn_control(node)
             _remote_restart_vpn_control(node)
