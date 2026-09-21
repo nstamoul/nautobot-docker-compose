@@ -480,6 +480,10 @@ def promote_nodes(context, tag, components="all", yes=False):
             _remote_pull_vpn_control(node)
             _remote_restart_vpn_control(node)
             _remote_wait_healthy(node, "vpn-control-api")
+        elif "vpn" in selected:
+            # The controller inherits SHMS_VPN_IMAGE; reload it after changing pins.
+            _remote_restart_vpn_control(node)
+            _remote_wait_healthy(node, "vpn-control-api")
         if selected == ["vpn"]:
             print(f"  [{node}] Updated VPN image pin. Existing tenant VPN containers were not restarted.")
 
