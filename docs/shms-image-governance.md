@@ -9,7 +9,7 @@ State last verified: 2026-05-26.
 
 ## Executive Summary
 
-SHMS production images are built by GitHub Actions on the `otepiconfig`
+SHMS production images are built by GitHub Actions on the `homelab-ci` (pve02 VM 202; formerly `otepiconfig`)
 self-hosted runner and published to GHCR. Production promotion is explicit and
 operator-driven from this compose repository; CI does not currently SSH into
 production or change production image pins.
@@ -39,10 +39,10 @@ The active production image authorities are:
 
 | Repository | Branch | Builds | CI workflow | Runner | Platforms | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| `shms-nautobot` | `main` | Nautobot web, central celery worker, celery beat | `.github/workflows/ci.yml` | `self-hosted`, `otepiconfig` | Default `linux/amd64` | Canonical core+apps Nautobot image |
-| `shms-vpn` | `main` | VPN appliance container | `.github/workflows/publish-image.yml` | `self-hosted`, `otepiconfig` | `linux/amd64` only | Used by tenant VPN compose stacks |
-| `shms-vpn-control-api` | `main` | VPN control API container | `.github/workflows/publish-image.yml` | `self-hosted`, `otepiconfig` | `linux/amd64` only | Manages tenant VPN stacks |
-| `nautobot_worker` | `main` | Remote worker image and worker base image | `.github/workflows/publish-image.yml` | `self-hosted`, `otepiconfig` | Default `linux/arm64`, configurable | Only image intended for RPi/ARM use |
+| `shms-nautobot` | `main` | Nautobot web, central celery worker, celery beat | `.github/workflows/ci.yml` | `self-hosted`, `homelab-ci` | Default `linux/amd64` | Canonical core+apps Nautobot image |
+| `shms-vpn` | `main` | VPN appliance container | `.github/workflows/publish-image.yml` | `self-hosted`, `homelab-ci` | `linux/amd64` only | Used by tenant VPN compose stacks |
+| `shms-vpn-control-api` | `main` | VPN control API container | `.github/workflows/publish-image.yml` | `self-hosted`, `homelab-ci` | `linux/amd64` only | Manages tenant VPN stacks |
+| `nautobot_worker` | `main` | Remote worker image and worker base image | `.github/workflows/publish-image.yml` | `self-hosted`, `homelab-ci` | Default `linux/arm64`, configurable | Only image intended for RPi/ARM use |
 | `piconfigurator_v2` | `main` | piconfig backend image | `.github/workflows/build-backend.yml` | self-hosted runner labels from workflow | `linux/amd64` | Deployed through piconfig HA compose |
 
 ### Code/Content Repositories That Do Not Build Production Images
