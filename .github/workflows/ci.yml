@@ -22,7 +22,7 @@ env:
   PYTHON_VER: "3.11"
 jobs:
   yamllint:
-    runs-on: [self-hosted, otepiconfig]
+    runs-on: ubuntu-latest
     steps:
       - name: "Check out repository code"
         uses: "actions/checkout@v4"
@@ -31,7 +31,7 @@ jobs:
       - name: "Run yamllint"
         run: "python3 -m yamllint ."
   build-shms-nautobot:
-    runs-on: [self-hosted, otepiconfig]
+    runs-on: ubuntu-latest
     needs: ["yamllint"]
     if: "github.event_name != 'pull_request'"
     steps:
@@ -64,7 +64,7 @@ jobs:
             --file "environments/Dockerfile" \
             .
   build-shms-vpn:
-    runs-on: [self-hosted, otepiconfig]
+    runs-on: ubuntu-latest
     needs: ["build-shms-nautobot"]
     if: "github.event_name == 'workflow_dispatch' && inputs.build_vpn"
     steps:
@@ -89,7 +89,7 @@ jobs:
             --tag "${SHMS_VPN_IMAGE}:${ref_tag}" \
             vpn/vpn
   build-shms-vpn-control-api:
-    runs-on: [self-hosted, otepiconfig]
+    runs-on: ubuntu-latest
     needs: ["build-shms-nautobot"]
     if: "github.event_name == 'workflow_dispatch' && inputs.build_vpn"
     steps:
