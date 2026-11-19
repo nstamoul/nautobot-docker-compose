@@ -175,6 +175,9 @@ PGPASSWORD=${{NAUTOBOT_DB_PASSWORD}}
     f"SHMS_NAUTOBOT_IMAGE={compose_escape(shms_nautobot_image)}\n"
     f"SHMS_VPN_IMAGE={compose_escape(shms_vpn_image)}\n"
     f"SHMS_VPN_CONTROL_API_IMAGE={compose_escape(shms_vpn_control_api_image)}\n"
+    # nb-ha-01 is the active node: only its celery_worker consumes vpn-control,
+    # the queue Control VPN runs on (see shms-nautobot SHMS_VPN_HA_DESIGN.md).
+    "SHMS_CELERY_EXTRA_QUEUES=,vpn-control\n"
 )
 PY
 
