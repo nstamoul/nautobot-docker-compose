@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 from invoke import Collection, task as invoke_task
@@ -31,6 +32,13 @@ COMPONENT_ALIASES = {
 
 ENV_FILE = COMPOSE_DIR / ".env"
 REMOTE_ENV_FILES = (".env", "local.shms.env")
+
+# vpn-control-api compose files. The locator overlay publishes 127.0.0.1:5011 (the slot locator the access
+# broker calls) and mounts the peer key directory. A node that has the overlay and runs in api-key mode must
+# never have vpn-control-api recreated without it: that takes the locator down for every broker session.
+VPN_CONTROL_COMPOSE_FILE = "docker-compose.shms-vpn.control.yml"
+VPN_CONTROL_LOCATOR_COMPOSE_FILE = "docker-compose.shms-vpn.control.locator.yml"
+VPN_CONTROL_LOCATOR_WAIT_SECONDS = 60
 
 namespace = Collection("nautobot_docker_compose")
 namespace.configure(
@@ -84,16 +92,63 @@ def vpn_control_compose(context, command, **kwargs):
     """Run a docker compose command against the vpn-control-api stack."""
     cfg = context.nautobot_docker_compose
     node_name = cfg.node_name
+    files = "".join(f' -f "{cfg.compose_dir}/{name}"' for name in _local_vpn_control_files(cfg.compose_dir))
     full_cmd = (
         f"docker compose"
         f" --project-name {cfg.project_name}"
         f' --project-directory "{cfg.compose_dir}"'
-        f' -f "{cfg.compose_dir}/docker-compose.shms-vpn.control.yml"'
+        f"{files}"
         f" {command}"
     )
     print(f'Running: docker compose (vpn-control) {command}')
     env = {**os.environ, "VPN_NODE_NAME": node_name}
     return context.run(full_cmd, env=env, **kwargs)
+
+
+def _env_says_api_key(env_text: str) -> bool:
+    """True when an env file sets VPN_CONTROL_AUTH_MODE=api-key (the only mode the locator overlay is for)."""
+    for line in env_text.splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and key.strip() == "VPN_CONTROL_AUTH_MODE":
+            return value.strip().strip("\"'") == "api-key"
+    return False
+
+
+def _no_locator_nodes() -> set:
+    """Nodes named in NO_LOCATOR_NODES never get the overlay (mtls mode), as in release_nautobot_ha.sh."""
+    return set(os.environ.get("NO_LOCATOR_NODES", "").split())
+
+
+def _local_vpn_control_files(compose_dir) -> list:
+    """Compose files for vpn-control-api on this node: the locator overlay is added whenever it applies."""
+    compose_dir = Path(compose_dir)
+    files = [VPN_CONTROL_COMPOSE_FILE]
+    overlay = compose_dir / VPN_CONTROL_LOCATOR_COMPOSE_FILE
+    env_file = compose_dir / ".env"
+    if overlay.is_file() and env_file.is_file() and _env_says_api_key(env_file.read_text()):
+        files.append(VPN_CONTROL_LOCATOR_COMPOSE_FILE)
+    return files
+
+
+def _local_verify_vpn_control_locator(context, compose_dir):
+    """After a local recreate: fail unless 127.0.0.1 is published when the overlay applies."""
+    if VPN_CONTROL_LOCATOR_COMPOSE_FILE not in _local_vpn_control_files(compose_dir):
+        return
+    deadline = time.time() + VPN_CONTROL_LOCATOR_WAIT_SECONDS
+    port = ""
+    while True:
+        result = context.run("docker port vpn-control-api 5001/tcp", warn=True, hide=True)
+        port = (result.stdout or "").strip() if result is not None else ""
+        if "127.0.0.1:" in port:
+            print(f"Locator published: {port}")
+            return
+        if time.time() >= deadline:
+            break
+        time.sleep(3)
+    raise RuntimeError(
+        "vpn-control-api does not publish 127.0.0.1 for 5001/tcp after the recreate "
+        f"(got: {port or 'nothing'}). The access broker's slot locator is DOWN on this node."
+    )
 
 
 def run_command(context, command, **kwargs):
@@ -280,13 +335,71 @@ def _remote_pull_app(node: str, compose_dir: str = "/opt/nautobot/environments")
     )
 
 
+def _remote_vpn_control_files(node: str, compose_dir: str = "/opt/nautobot/environments") -> list:
+    """Compose files for vpn-control-api on a remote node, decided by the node itself.
+
+    The locator overlay is added when the node has the file and its .env sets
+    VPN_CONTROL_AUTH_MODE=api-key. A failed probe raises: the overlay is never dropped silently.
+    """
+    if node in _no_locator_nodes():
+        print(f"  [{node}] Locator overlay skipped: listed in NO_LOCATOR_NODES.")
+        return [VPN_CONTROL_COMPOSE_FILE]
+    probe = (
+        f"if [ ! -f {compose_dir}/{VPN_CONTROL_LOCATOR_COMPOSE_FILE} ]; then echo absent; "
+        f"elif grep -Eq '^VPN_CONTROL_AUTH_MODE=.?api-key.?$' {compose_dir}/.env 2>/dev/null; then echo overlay; "
+        "else echo not-api-key; fi"
+    )
+    answer = (_ssh(node, probe, capture=True).stdout or "").strip()
+    if answer == "overlay":
+        print(f"  [{node}] Locator overlay included ({VPN_CONTROL_LOCATOR_COMPOSE_FILE}).")
+        return [VPN_CONTROL_COMPOSE_FILE, VPN_CONTROL_LOCATOR_COMPOSE_FILE]
+    if answer == "absent":
+        print(f"  [{node}] Locator overlay not present; using {VPN_CONTROL_COMPOSE_FILE} only.")
+        return [VPN_CONTROL_COMPOSE_FILE]
+    if answer == "not-api-key":
+        print(f"  [{node}] Locator overlay present but VPN_CONTROL_AUTH_MODE is not api-key in .env; not used.")
+        return [VPN_CONTROL_COMPOSE_FILE]
+    raise RuntimeError(f"[{node}] unexpected answer while checking the locator overlay: {answer!r}")
+
+
+def _remote_locator_port(node: str) -> str:
+    result = _ssh(node, "docker port vpn-control-api 5001/tcp 2>/dev/null || true", check=False, capture=True)
+    return (result.stdout or "").strip()
+
+
+def _remote_verify_locator(node: str, timeout_seconds=None):
+    """Fail loudly unless vpn-control-api publishes 127.0.0.1 for 5001/tcp on the node."""
+    if timeout_seconds is None:
+        timeout_seconds = VPN_CONTROL_LOCATOR_WAIT_SECONDS
+    deadline = time.time() + timeout_seconds
+    port = ""
+    while True:
+        port = _remote_locator_port(node)
+        if "127.0.0.1:" in port:
+            print(f"  [{node}] Locator published: {port}")
+            return
+        if time.time() >= deadline:
+            break
+        time.sleep(3)
+    raise RuntimeError(
+        f"[{node}] vpn-control-api does not publish 127.0.0.1 for 5001/tcp after the recreate "
+        f"(got: {port or 'nothing'}). The access broker's slot locator is DOWN on this node. Recreate it with "
+        f"both {VPN_CONTROL_COMPOSE_FILE} and {VPN_CONTROL_LOCATOR_COMPOSE_FILE}."
+    )
+
+
+def _compose_file_args(files: list) -> str:
+    return " ".join(f"-f {name}" for name in files)
+
+
 def _remote_pull_vpn_control(node: str, compose_dir: str = "/opt/nautobot/environments"):
     """Pull vpn-control-api image on a remote node before restarting."""
     print(f"  [{node}] Pulling vpn-control-api image...")
+    files = _compose_file_args(_remote_vpn_control_files(node, compose_dir))
     _ssh(
         node,
         f"cd {compose_dir} && set -a && source .env && set +a && "
-        f"VPN_NODE_NAME={node} docker compose -f docker-compose.shms-vpn.control.yml pull vpn-control-api",
+        f"VPN_NODE_NAME={node} docker compose {files} pull vpn-control-api",
     )
 
 
@@ -335,13 +448,26 @@ def _remote_collect_static(node: str):
 
 
 def _remote_restart_vpn_control(node: str, compose_dir: str = "/opt/nautobot/environments"):
-    """Restart vpn-control-api on a remote node."""
+    """Restart vpn-control-api on a remote node, with the locator overlay wherever the node has it.
+
+    Refuses to recreate an API that publishes the locator without the overlay, and fails after the
+    recreate unless 127.0.0.1 is published again.
+    """
     print(f"  [{node}] Restarting vpn-control-api...")
+    names = _remote_vpn_control_files(node, compose_dir)
+    with_locator = VPN_CONTROL_LOCATOR_COMPOSE_FILE in names
+    if not with_locator and "127.0.0.1:" in _remote_locator_port(node):
+        raise RuntimeError(
+            f"[{node}] vpn-control-api publishes the slot locator on 127.0.0.1, but this run would recreate it "
+            f"without {VPN_CONTROL_LOCATOR_COMPOSE_FILE}. Refusing; nothing was restarted."
+        )
     _ssh(
         node,
         f"cd {compose_dir} && set -a && source .env && set +a && "
-        f"VPN_NODE_NAME={node} docker compose -f docker-compose.shms-vpn.control.yml up -d vpn-control-api",
+        f"VPN_NODE_NAME={node} docker compose {_compose_file_args(names)} up -d vpn-control-api",
     )
+    if with_locator:
+        _remote_verify_locator(node)
 
 
 def _remote_wait_healthy(node: str, container_name: str, timeout_seconds: int = 180):
@@ -420,6 +546,7 @@ def promote(context, tag, components="all", yes=False):
     if "vpn-control" in selected:
         print("\nRestarting vpn-control-api...")
         vpn_control_compose(context, "up -d vpn-control-api")
+        _local_verify_vpn_control_locator(context, context.nautobot_docker_compose.compose_dir)
 
     if selected == ["vpn"]:
         print("\nUpdated VPN image pin. Existing tenant VPN containers are not restarted automatically.")
@@ -575,6 +702,7 @@ def vpn_control_start(context):
     """Start the vpn-control-api container."""
     print("Starting vpn-control-api...")
     vpn_control_compose(context, "up -d vpn-control-api")
+    _local_verify_vpn_control_locator(context, context.nautobot_docker_compose.compose_dir)
 
 
 @task
